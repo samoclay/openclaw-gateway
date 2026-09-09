@@ -1,6 +1,5 @@
 # Publish hosted-SPA artifacts (site/index.html, not the Next.js BFF).
 # Merge to staging/master → S3 spa/<git-sha>/ (required on staging).
-# Tag vMAJOR.MINOR.PATCH on master/main → GitHub Release (semver) + production S3.
 # Terraform pins the git SHA via openclaw_spa_version (S3 key spa/<sha>/).
 #
 # Do NOT set AWS_ROLE_ARN in workflow/job env — the AWS SDK treats that as
@@ -11,47 +10,23 @@ name: Publish
 on:
   push:
     branches: [master, main, staging]
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
 
 permissions:
   contents: write
   id-token: write
-  deployments: write
 
 jobs:
   publish-spa:
     name: Package SPA and publish
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/staging' && 'staging' || 'production' }}
+    environment: ${{ github.ref_name == 'staging' && 'staging' || 'production' }}
+    if: github.ref_name == 'staging' || github.ref_name == 'main' || github.ref_name == 'master'
     env:
       AWS_REGION: eu-west-2
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: 0
-
-      - name: Require version tags on master or main
-        if: github.ref_type == 'tag'
-        run: |
-          set -euo pipefail
-          tag="$GITHUB_REF_NAME"
-          re='^v[0-9]+\.[0-9]+\.[0-9]+$'
-          if [[ ! "$tag" =~ $re ]]; then
-            echo "::error::Tag $tag must be vMAJOR.MINOR.PATCH."
-            exit 1
-          fi
-          git fetch origin master main
-          if git merge-base --is-ancestor "$GITHUB_SHA" origin/master 2>/dev/null; then
-            exit 0
-          fi
-          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main 2>/dev/null; then
-            exit 0
-          fi
-          echo "::error::Tag $tag must point at a commit on master or main."
-          exit 1
 
       - name: Setup Node.js 24
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -77,52 +52,20 @@ jobs:
       - name: Package hosted SPA
         run: bash scripts/package-spa.sh
 
-      - name: GitHub Release
-        if: github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          notes=$(mktemp)
-          printf '%s\n' \
-            "Halcyon Insights $GITHUB_REF_NAME" \
-            "" \
-            "Hosted artifact is site/index.html (CloudFront SPA), not the local Next.js BFF." \
-            "" \
-            "Pin in sam-terraform envs/production/production.tfvars:" \
-            "" \
-            "openclaw_spa_version = \"$GITHUB_SHA\"" \
-            "" \
-            "S3 key: spa/$GITHUB_SHA/index.html" \
-            > "$notes"
-          zip="dist/openclaw-spa-$GITHUB_SHA.zip"
-          man="dist/spa/manifest.json"
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$zip" "$man" --clobber
-            gh release edit "$GITHUB_REF_NAME" \
-              --title "Halcyon Insights $GITHUB_REF_NAME" \
-              --notes-file "$notes"
-          else
-            gh release create "$GITHUB_REF_NAME" "$zip" "$man" \
-              --title "Halcyon Insights $GITHUB_REF_NAME" \
-              --notes-file "$notes"
-          fi
-
       - name: Require artifact publish config
-        if: github.ref_type == 'branch'
         env:
           ROLE: ${{ vars.AWS_ROLE_ARN }}
           BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
         run: |
           set -euo pipefail
-          if [ -n "${ROLE}" ] && [ -n "${BUCKET}" ]; then
+          if [ -n "$ROLE" ] && [ -n "$BUCKET" ]; then
             exit 0
           fi
           if [ "$GITHUB_REF_NAME" = "staging" ]; then
-            echo "::error::Set GitHub Environment variables AWS_ROLE_ARN and ARTIFACTS_BUCKET on 'staging' (terraform output openclaw_github_actions)."
+            echo "::error::Set GitHub Environment variables AWS_ROLE_ARN and ARTIFACTS_BUCKET on staging."
             exit 1
           fi
-          echo "::warning::Skipping S3: GitHub Environment production has no AWS_ROLE_ARN/ARTIFACTS_BUCKET (deploy_openclaw is false)."
+          echo "::warning::Skipping S3: production Environment has no AWS_ROLE_ARN/ARTIFACTS_BUCKET."
 
       - name: Configure AWS credentials (OIDC)
         if: vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != ''
@@ -147,12 +90,10 @@ jobs:
             --checksum-algorithm SHA256
           echo "Published ${prefix}/  pin openclaw_spa_version = ${GITHUB_SHA}"
 
-      # Cross-repo pin PR needs SAM_TERRAFORM_TOKEN (GITHUB_TOKEN cannot open PRs elsewhere).
-      # Prefer a fine-grained PAT: contents + pull requests on samoclay/sam-terraform only.
       - name: Warn if staging pin token missing
         if: github.ref_name == 'staging' && vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != '' && secrets.SAM_TERRAFORM_TOKEN == ''
         run: |
-          echo "::warning::SPA uploaded but SAM_TERRAFORM_TOKEN is unset; skipped sam-terraform pin PR. Add a repo secret with contents:write + pull-requests:write on samoclay/sam-terraform."
+          echo "::warning::SPA uploaded but SAM_TERRAFORM_TOKEN is unset; skipped sam-terraform pin PR."
 
       - name: Open or update sam-terraform staging pin PR
         if: >
@@ -177,28 +118,24 @@ jobs:
 
           tfvars=envs/staging/staging.tfvars
           if [[ ! -f "$tfvars" ]]; then
-            echo "::error::${tfvars} missing on ${BASE_BRANCH}. Merge the OpenClaw staging stack to main before pin PRs can open."
+            echo "::error::$tfvars missing on $BASE_BRANCH."
             exit 1
           fi
           if grep -qE '^[[:space:]]*openclaw_spa_version[[:space:]]*=' "$tfvars"; then
-            sed -i.bak -E "s|^[[:space:]]*openclaw_spa_version[[:space:]]*=.*|openclaw_spa_version = \"${SPA_SHA}\"|" "$tfvars"
+            sed -i.bak -E "s|^[[:space:]]*openclaw_spa_version[[:space:]]*=.*|openclaw_spa_version = \"$SPA_SHA\"|" "$tfvars"
           elif grep -qE '^[[:space:]]*#[[:space:]]*openclaw_spa_version' "$tfvars"; then
-            sed -i.bak -E "s|^[[:space:]]*#[[:space:]]*openclaw_spa_version[[:space:]]*=.*|openclaw_spa_version = \"${SPA_SHA}\"|" "$tfvars"
+            sed -i.bak -E "s|^[[:space:]]*#[[:space:]]*openclaw_spa_version[[:space:]]*=.*|openclaw_spa_version = \"$SPA_SHA\"|" "$tfvars"
           else
             printf '\nopenclaw_spa_version = "%s"\n' "$SPA_SHA" >> "$tfvars"
           fi
           rm -f "${tfvars}.bak"
 
           if git diff --quiet; then
-            echo "Pin already at ${SPA_SHA}; nothing to do"
+            echo "Pin already at $SPA_SHA; nothing to do"
             exit 0
           fi
 
-          body="Auto-opened by openclaw Publish after uploading \`spa/${SPA_SHA}/\` to the staging artifacts bucket.
-
-          Pins \`envs/staging/staging.tfvars\` only. Merge into \`main\` to apply the staging env (path-based apply).
-
-          Source: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          body="Auto-opened by openclaw Publish after uploading spa/$SPA_SHA/ to the staging artifacts bucket. Merge into main to apply staging. Source: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           git add "$tfvars"
           git commit -m "chore(openclaw): pin spa ${SPA_SHA:0:12} for staging"
@@ -207,9 +144,9 @@ jobs:
           title="chore(openclaw): pin SPA ${SPA_SHA:0:12} (staging)"
           if gh pr view "$PIN_BRANCH" --repo "$TF_REPO" --json number -q .number >/dev/null 2>&1; then
             gh pr edit "$PIN_BRANCH" --repo "$TF_REPO" --title "$title" --body "$body"
-            echo "Updated existing pin PR for ${SPA_SHA}"
+            echo "Updated existing pin PR for $SPA_SHA"
           else
             gh pr create --repo "$TF_REPO" --base "$BASE_BRANCH" --head "$PIN_BRANCH" \
               --title "$title" --body "$body"
-            echo "Opened pin PR for ${SPA_SHA}"
+            echo "Opened pin PR for $SPA_SHA"
           fi
