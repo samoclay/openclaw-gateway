@@ -1,0 +1,23 @@
+---
+description: CloudEvents stamp, forbidden prompt keys, server identity
+globs: packages/telemetry/**,**/emit.ts
+alwaysApply: false
+---
+
+# Telemetry
+
+Use `@halcyon/telemetry` `stampAndValidate`. The server stamps identity; strip `tenant_id` / `user_id` / `session_id` / `agent_id` / `request_id` / `sandbox_id` from `data`.
+
+Never persist prompts or responses. Reject events whose `data` contains forbidden keys (`prompt`, `response`, `messages`, `content`, `transcript`, …).
+
+Sidecar `{ type: "telemetry" }` is ingest-only. Browsers get `delta` / `done` / `error` only (`isClientForwardableSidecarType`).
+
+```ts
+// BAD
+event.data.prompt = userText;
+
+// GOOD
+stampAndValidate({ type: "com.halcyon.agent.task.complete", data: { tokens: 12 } }, identity);
+```
+
+Portal emit lives in `apps/portal/src/server/emit.ts`. Do not add a second stamp path.

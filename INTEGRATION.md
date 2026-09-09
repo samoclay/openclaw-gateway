@@ -8,11 +8,27 @@ Infra lives in `sam-terraform`. Read these, in order:
 
 **Do not** target ECS Fargate, RDS, Tailscale EC2, or a public Gateway.
 
+## Analytics (gated, $0 idle)
+
+`deploy_openclaw_analytics` is **true on staging** (prod stays false). Idle lake cost is still $0 until events land. Insight tables exist with the portal; empty tenants get **demo** rows scoped to membership only.
+
+| Concern | Contract |
+|---|---|
+| Identity | `tenantId` on each sandbox (`tenantId = sandboxId` in v1). Never trust `tenantId` from the browser, sidecar, or Qwen. |
+| Events | CloudEvents from `@halcyon/telemetry`. Prompts/responses are rejected. Lambda stamps `tenant_id` from the sandbox row. |
+| Sidecar | `{ type: "telemetry" }` after chat. Lambda **must not** `PostToConnection` it to browsers (only `delta` / `done` / `error`). |
+| Ingest | Portal Lambda `PutRecord` to Firehose only when `FIREHOSE_STREAM_NAME` is set. Watermark is always written. |
+| Serving | `GET /api/insights`, `GET /api/insights/:id`, `POST /api/insights/:id/status`, `GET /api/metrics/summary` — Dynamo only, membership-scoped. |
+| Extra tables | `{prefix}insights`, `{prefix}ingest_watermarks`, `{prefix}tenant_metrics` |
+| Lake | Created only by `modules/openclaw_analytics`. Portal role has **no** Athena/S3 lake read. |
+
+Local UI: `/insights`. Hosted SPA (`site/index.html`) is PKCE login + Insights dashboard. Push openclaw branch `staging` to publish the SPA; apply `sam-terraform` `envs/staging` for Lambda seed + the analytics module.
+
 ## Local full console vs hosted edge
 
 | Concern | This repo (`openclaw`) | `sam-terraform` |
 |---|---|---|
-| Full admin UI + chat UI | Yes — `apps/portal` (`npm run dev` → `/admin`, `/sandboxes/[id]`) | No — hosted `site/index.html` is Cognito login landing only |
+| Full admin UI + chat UI | Yes — `apps/portal` (`npm run dev` → `/admin`, `/sandboxes/[id]`) | Insights dashboard after Cognito PKCE; chat still WebSocket / admin via curl |
 | Auth | Cookie `halcyon_session` + DynamoDB password (local) | Cognito Hosted UI + JWT |
 | Chat | `POST /api/sandboxes/:id/chat` SSE → loopback Gateway | WebSocket via AWS; REST chat returns **426** |
 | Reach Gateway | Portal holds `OPENCLAW_GATEWAY_TOKEN`, calls `:18789` | **Sidecar only** holds Gateway token; Lambda never does |
@@ -20,7 +36,7 @@ Infra lives in `sam-terraform`. Read these, in order:
 | Publish SPA | `.github/workflows/publish.yml` packages `site/index.html` | Pins `openclaw_spa_version`, serves CloudFront |
 | Publish Lambda | — | `publish-openclaw.yml` → `openclaw_lambda_version` |
 
-**UX today:** Staging `https://staging.halcyonlabs.uk` = signup + landing. Grant sandboxes with admin Cognito JWT + `/api/admin/*` (see admin runbook), or use local `/admin`. Ordinary signup → `client` with **zero** sandboxes until an admin attaches them.
+**UX today:** Staging `https://staging.halcyonlabs.uk` = Cognito PKCE + Business Insights. Grant sandboxes with admin Cognito JWT + `/api/admin/*` (see admin runbook), or use local `/admin`. Ordinary signup → labelled Sample workspace in the hosted SPA (in-page fixtures, not Dynamo). Dynamo demo seed still requires membership.
 
 ```mermaid
 flowchart LR
@@ -29,7 +45,7 @@ flowchart LR
     ChatUI["/sandboxes/id chat"]
   end
   subgraph hostedUX [Hosted_AWS]
-    Landing["site/index.html"]
+    Landing["site/index.html Insights"]
     Cognito["Cognito login"]
     AdminAPI["/api/admin curl"]
   end

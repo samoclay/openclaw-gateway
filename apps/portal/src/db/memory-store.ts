@@ -1,8 +1,11 @@
 import type {
+  IngestWatermarkRow,
+  InsightRow,
   MemberRow,
   PortalStore,
   SandboxRow,
   SessionRow,
+  TenantMetricRow,
   ThreadRow,
   UserRecord,
 } from "./types";
@@ -14,6 +17,9 @@ export class MemoryStore implements PortalStore {
   sandboxes = new Map<string, SandboxRow>();
   members = new Map<string, MemberRow>();
   threads = new Map<string, ThreadRow>();
+  insights = new Map<string, InsightRow>();
+  watermarks = new Map<string, IngestWatermarkRow>();
+  metrics = new Map<string, TenantMetricRow>();
 
   private memberKey(sandboxId: string, userId: string) {
     return `${sandboxId}#${userId}`;
@@ -87,5 +93,39 @@ export class MemoryStore implements PortalStore {
 
   async putThread(thread: ThreadRow) {
     this.threads.set(thread.threadId, thread);
+  }
+
+  private insightKey(tenantId: string, insightId: string) {
+    return `${tenantId}#${insightId}`;
+  }
+
+  async getInsight(tenantId: string, insightId: string) {
+    return this.insights.get(this.insightKey(tenantId, insightId)) ?? null;
+  }
+
+  async putInsight(insight: InsightRow) {
+    this.insights.set(this.insightKey(insight.tenantId, insight.insightId), insight);
+  }
+
+  async listInsightsByTenant(tenantId: string) {
+    return [...this.insights.values()]
+      .filter((row) => row.tenantId === tenantId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  async getWatermark(tenantId: string) {
+    return this.watermarks.get(tenantId) ?? null;
+  }
+
+  async putWatermark(row: IngestWatermarkRow) {
+    this.watermarks.set(row.tenantId, row);
+  }
+
+  async getTenantMetric(tenantId: string, metricDate: string) {
+    return this.metrics.get(`${tenantId}#${metricDate}`) ?? null;
+  }
+
+  async putTenantMetric(row: TenantMetricRow) {
+    this.metrics.set(`${row.tenantId}#${row.metricDate}`, row);
   }
 }

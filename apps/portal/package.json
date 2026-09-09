@@ -15,6 +15,7 @@
     "@aws-sdk/lib-dynamodb": "^3.864.0",
     "@halcyon/core": "*",
     "@halcyon/openclaw-gateway": "*",
+    "@halcyon/telemetry": "*",
     "jose": "^6.0.12",
     "next": "^16.3.4",
     "react": "^19.1.1",

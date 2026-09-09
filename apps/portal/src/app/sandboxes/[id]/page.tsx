@@ -97,9 +97,10 @@ export default function SandboxChatPage() {
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col px-6 py-8">
       <header className="mb-6 flex items-center justify-between">
-        <Link href="/" className="text-sm text-[var(--muted)]">
-          ← Sandboxes
-        </Link>
+        <div className="flex gap-4 text-sm text-[var(--muted)]">
+          <Link href="/">← Sandboxes</Link>
+          <Link href="/insights">Insights</Link>
+        </div>
         <button
           type="button"
           className="text-sm text-[var(--accent)]"

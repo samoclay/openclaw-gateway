@@ -14,10 +14,13 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import { env } from "../server/env";
 import type {
+  IngestWatermarkRow,
+  InsightRow,
   MemberRow,
   PortalStore,
   SandboxRow,
   SessionRow,
+  TenantMetricRow,
   ThreadRow,
   UserRecord,
 } from "./types";
@@ -32,6 +35,9 @@ export const TABLE = {
   sandboxes: () => table("sandboxes"),
   members: () => table("sandbox_members"),
   threads: () => table("threads"),
+  insights: () => table("insights"),
+  watermarks: () => table("ingest_watermarks"),
+  metrics: () => table("tenant_metrics"),
 };
 
 export function createDocumentClient() {
@@ -190,6 +196,67 @@ export class DynamoStore implements PortalStore {
       new PutCommand({ TableName: TABLE.threads(), Item: thread }),
     );
   }
+
+  async getInsight(tenantId: string, insightId: string) {
+    const result = await this.doc.send(
+      new GetCommand({
+        TableName: TABLE.insights(),
+        Key: { tenantId, insightId },
+      }),
+    );
+    return (result.Item as InsightRow | undefined) ?? null;
+  }
+
+  async putInsight(insight: InsightRow) {
+    await this.doc.send(
+      new PutCommand({ TableName: TABLE.insights(), Item: insight }),
+    );
+  }
+
+  async listInsightsByTenant(tenantId: string) {
+    const result = await this.doc.send(
+      new QueryCommand({
+        TableName: TABLE.insights(),
+        KeyConditionExpression: "tenantId = :tenantId",
+        ExpressionAttributeValues: { ":tenantId": tenantId },
+      }),
+    );
+    return ((result.Items ?? []) as InsightRow[]).sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
+  }
+
+  async getWatermark(tenantId: string) {
+    const result = await this.doc.send(
+      new GetCommand({
+        TableName: TABLE.watermarks(),
+        Key: { tenantId },
+      }),
+    );
+    return (result.Item as IngestWatermarkRow | undefined) ?? null;
+  }
+
+  async putWatermark(row: IngestWatermarkRow) {
+    await this.doc.send(
+      new PutCommand({ TableName: TABLE.watermarks(), Item: row }),
+    );
+  }
+
+  async getTenantMetric(tenantId: string, metricDate: string) {
+    const result = await this.doc.send(
+      new GetCommand({
+        TableName: TABLE.metrics(),
+        Key: { tenantId, metricDate },
+      }),
+    );
+    return (result.Item as TenantMetricRow | undefined) ?? null;
+  }
+
+  async putTenantMetric(row: TenantMetricRow) {
+    await this.doc.send(
+      new PutCommand({ TableName: TABLE.metrics(), Item: row }),
+    );
+  }
 }
 
 async function tableExists(client: DynamoDBClient, name: string) {
@@ -259,6 +326,35 @@ export async function ensureTables(client: DynamoDBClient) {
       KeySchema: [{ AttributeName: "threadId", KeyType: "HASH" as const }],
       AttributeDefinitions: [
         { AttributeName: "threadId", AttributeType: "S" as const },
+      ],
+    },
+    {
+      TableName: TABLE.insights(),
+      KeySchema: [
+        { AttributeName: "tenantId", KeyType: "HASH" as const },
+        { AttributeName: "insightId", KeyType: "RANGE" as const },
+      ],
+      AttributeDefinitions: [
+        { AttributeName: "tenantId", AttributeType: "S" as const },
+        { AttributeName: "insightId", AttributeType: "S" as const },
+      ],
+    },
+    {
+      TableName: TABLE.watermarks(),
+      KeySchema: [{ AttributeName: "tenantId", KeyType: "HASH" as const }],
+      AttributeDefinitions: [
+        { AttributeName: "tenantId", AttributeType: "S" as const },
+      ],
+    },
+    {
+      TableName: TABLE.metrics(),
+      KeySchema: [
+        { AttributeName: "tenantId", KeyType: "HASH" as const },
+        { AttributeName: "metricDate", KeyType: "RANGE" as const },
+      ],
+      AttributeDefinitions: [
+        { AttributeName: "tenantId", AttributeType: "S" as const },
+        { AttributeName: "metricDate", AttributeType: "S" as const },
       ],
     },
   ];
