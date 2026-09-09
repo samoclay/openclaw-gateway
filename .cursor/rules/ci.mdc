@@ -9,7 +9,7 @@ alwaysApply: false
 This repo has **one** npm CI job (`.github/workflows/ci.yml`): `npm ci`, `npm audit --audit-level=high`, `npm test`, portal build, `bash scripts/package-spa.sh`.
 
 - Keep `scripts/package-spa.sh` packaging `site/index.html` (not the Next.js BFF).
-- Do not add AWS apply, Lambda zip, or extra deploy workflows here. Publish already lives in `.github/workflows/publish.yml`.
+- Do not add AWS apply, Lambda zip, or extra deploy workflows here. Publish already lives in `.github/workflows/publish.yml` (`deployments: write` is required for `environment:`). GitHub Releases are `v*` tags; terraform pin is the git SHA.
 - Pin GitHub Action SHAs. Do not add `--no-verify` or skip hooks.
 
 ```yaml
