@@ -14,12 +14,14 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   publish-spa:
     name: Package SPA and publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     if: github.ref_name == 'staging' || github.ref_name == 'main' || github.ref_name == 'master'
     env:
       AWS_REGION: eu-west-2
