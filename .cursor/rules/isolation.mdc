@@ -1,0 +1,24 @@
+---
+description: Sandbox membership ACL and insights tenant isolation
+globs: packages/core/**,apps/portal/**
+alwaysApply: false
+---
+
+# Isolation
+
+Access is membership, not a client-supplied tenant. v1 `tenantId = sandboxId`.
+
+- Resolve tenant with `resolveTenantId` from the sandbox row. Ignore `claimedTenantId`.
+- Insights reads/writes go through `authorizeInsightRead` / `tenantIdsForMemberships`.
+- Analytics SQL must include `:tenant_id`; use `bindTenantPredicate` (never concatenate raw ids).
+- Clients cannot pick `agentId`, `model`, or `sessionKey`.
+
+```ts
+// BAD — trust the query string
+const tenantId = req.nextUrl.searchParams.get("tenantId");
+
+// GOOD — memberships only
+const tenantId = resolveTenantId({ sandbox, claimedTenantId: claimed });
+```
+
+ACL or insights route changes need a **cross-tenant** test (user A cannot read B's insight, spoofed `tenantId` is ignored).

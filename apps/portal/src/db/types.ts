@@ -1,4 +1,4 @@
-import type { Role } from "@halcyon/core";
+import type { InsightStatus, Role } from "@halcyon/core";
 
 export type UserRecord = {
   userId: string;
@@ -10,10 +10,43 @@ export type UserRecord = {
 
 export type SandboxRow = {
   sandboxId: string;
+  tenantId: string;
   name: string;
   openclawAgentId: string;
   modelRef: string;
   createdByAdminId: string;
+};
+
+export type InsightRow = {
+  tenantId: string;
+  insightId: string;
+  createdAt: string;
+  periodStart: string;
+  periodEnd: string;
+  category: string;
+  title: string;
+  summary: string;
+  evidence: string[];
+  metrics: Record<string, number>;
+  confidence: "low" | "medium" | "high";
+  severity: "low" | "medium" | "high";
+  recommendedAction: string;
+  status: InsightStatus;
+};
+
+export type TenantMetricRow = {
+  tenantId: string;
+  metricDate: string;
+  chats: number;
+  inferenceFailures: number;
+  toolCalls: number;
+};
+
+export type IngestWatermarkRow = {
+  tenantId: string;
+  lastEventAt: string;
+  lastTransformAt?: string;
+  lastInsightAt?: string;
 };
 
 export type MemberRow = {
@@ -53,4 +86,11 @@ export type PortalStore = {
   listMembersBySandbox(sandboxId: string): Promise<MemberRow[]>;
   getThread(threadId: string): Promise<ThreadRow | null>;
   putThread(thread: ThreadRow): Promise<void>;
+  getInsight(tenantId: string, insightId: string): Promise<InsightRow | null>;
+  putInsight(insight: InsightRow): Promise<void>;
+  listInsightsByTenant(tenantId: string): Promise<InsightRow[]>;
+  getWatermark(tenantId: string): Promise<IngestWatermarkRow | null>;
+  putWatermark(row: IngestWatermarkRow): Promise<void>;
+  getTenantMetric(tenantId: string, metricDate: string): Promise<TenantMetricRow | null>;
+  putTenantMetric(row: TenantMetricRow): Promise<void>;
 };

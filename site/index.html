@@ -3,65 +3,581 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Halcyon sandbox</title>
+  <title>Halcyon Insights</title>
   <style>
-    :root { color-scheme: dark; }
+    :root {
+      color-scheme: dark;
+      --bg: #0c1014;
+      --raised: #141b22;
+      --line: #243040;
+      --text: #e8eef4;
+      --muted: #8aa0b5;
+      --accent: #3ee0b2;
+      --danger: #ff6b7a;
+      --warn: #f5c16c;
+    }
+    * { box-sizing: border-box; }
     body {
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      background: #0c1014;
-      color: #e8eef4;
       margin: 0;
+      min-height: 100vh;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    a { color: var(--accent); text-decoration: none; }
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: 0;
+      border-radius: 8px;
+      padding: 0.55rem 1rem;
+    }
+    .accent { background: var(--accent); color: #06251c; font-weight: 600; }
+    .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+    .wrap { max-width: 56rem; margin: 0 auto; padding: 1.75rem 1.25rem 3rem; }
+    .kicker {
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-size: 0.72rem;
+      margin: 0 0 0.4rem;
+    }
+    h1 { margin: 0 0 0.35rem; font-size: 1.85rem; }
+    h2 { margin: 0 0 0.4rem; }
+    h3 { margin: 0.9rem 0 0.35rem; font-size: 1rem; }
+    .muted { color: var(--muted); }
+    header.bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .banner {
+      background: color-mix(in srgb, var(--accent) 10%, var(--raised));
+      border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.88rem;
+    }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .card {
+      background: var(--raised);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+    }
+    .card h2 { margin: 0; font-size: 1.6rem; }
+    .card p { margin: 0.25rem 0 0; font-size: 0.82rem; color: var(--muted); }
+    .delta-up { color: var(--accent); }
+    .delta-down { color: var(--danger); }
+    .sev-high { color: var(--danger); }
+    .sev-medium { color: var(--warn); }
+    .sev-low { color: var(--accent); }
+    .charts {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr;
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    @media (max-width: 720px) {
+      .charts { grid-template-columns: 1fr; }
+    }
+    .chart { width: 100%; height: auto; display: block; }
+    .mix { display: grid; gap: 0.7rem; margin-top: 0.75rem; }
+    .mix-row { display: grid; gap: 0.25rem; }
+    .mix-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .mix-track {
+      height: 8px;
+      border-radius: 99px;
+      background: #0c1014;
+      overflow: hidden;
+    }
+    .mix-fill {
+      display: block;
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent);
+    }
+    .insights { display: grid; gap: 0.75rem; }
+    .insight { display: block; }
+    .insight:hover { border-color: var(--accent); }
+    .insight h3 { margin: 0.35rem 0 0; font-size: 1.05rem; color: var(--text); }
+    .meta {
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .gate, .login {
       min-height: 100vh;
       display: grid;
       place-items: center;
-    }
-    main {
-      max-width: 36rem;
       padding: 2rem;
     }
-    p.kicker {
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      color: #3ee0b2;
-      font-size: 0.75rem;
-    }
-    a {
-      color: #3ee0b2;
-    }
-    code { color: #8aa0b5; }
+    .login main, .gate main { max-width: 28rem; }
+    ul.evidence { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+    .actions { display: flex; gap: 0.5rem; margin-top: 1.25rem; }
+    .err { color: var(--danger); }
   </style>
 </head>
 <body>
-  <main>
-    <p class="kicker">Halcyon</p>
-    <h1>Sandbox console</h1>
-    <p>Sign up or sign in. Email verification is required. An admin must still grant you a sandbox before you can talk to a model.</p>
-    <p><a id="login" href="#">Open hosted login</a></p>
-    <p>API: <code id="api">https://app.halcyonlabs.uk/api</code><br />Chat socket: <code id="ws">wss://ws.app.halcyonlabs.uk</code></p>
-  </main>
+  <div id="app"></div>
   <script>
-    fetch("/config.json", { cache: "no-store" })
-      .then(function (res) {
-        if (!res.ok) throw new Error("config " + res.status);
-        return res.json();
-      })
-      .then(function (cfg) {
-        var host = cfg.host;
-        var wsHost = cfg.wsHost;
-        var domain = cfg.cognitoDomain;
-        var clientId = cfg.cognitoClientId;
-        var redirect = "https://" + host;
-        document.getElementById("api").textContent = "https://" + host + "/api";
-        document.getElementById("ws").textContent = "wss://" + wsHost;
-        document.getElementById("login").href =
-          "https://" + domain + "/login?client_id=" + encodeURIComponent(clientId)
-          + "&response_type=code&scope=" + encodeURIComponent("email openid profile")
-          + "&redirect_uri=" + encodeURIComponent(redirect);
-      })
-      .catch(function () {
-        document.getElementById("login").textContent = "Config missing (apply terraform config.json)";
-        document.getElementById("login").removeAttribute("href");
+    const TOKENS = "halcyon_tokens";
+    const VERIFIER = "halcyon_pkce_verifier";
+    const STATE = "halcyon_oauth_state";
+    const SAMPLE_TENANT = "sample";
+
+    const app = document.getElementById("app");
+    let cfg = null;
+    let me = null;
+
+    function isoDay(offset) {
+      const day = new Date();
+      day.setUTCHours(12, 0, 0, 0);
+      day.setUTCDate(day.getUTCDate() + offset);
+      return day.toISOString().slice(0, 10);
+    }
+
+    function buildSample() {
+      const periodStart = isoDay(-30);
+      const periodEnd = isoDay(0);
+      const created = periodEnd + "T09:00:00Z";
+      const chats = [14, 16, 15, 18, 22, 19, 21, 18, 22, 19, 31, 27, 24, 29];
+      const series = chats.map((count, i) => ({ date: isoDay(-13 + i), chats: count }));
+      return {
+        metrics: {
+          tenantId: SAMPLE_TENANT,
+          metricDate: periodEnd,
+          chats: 29,
+          inferenceFailures: 2,
+          toolCalls: 41,
+          series: series,
+          source: "sample",
+        },
+        intents: [
+          { label: "Order status", pct: 68 },
+          { label: "Delivery", pct: 22 },
+          { label: "Other", pct: 10 },
+        ],
+        insights: [
+          {
+            tenantId: SAMPLE_TENANT,
+            insightId: "demo-support-sample",
+            createdAt: created,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            category: "Customer Support",
+            title: "Delivery enquiries have increased",
+            summary: "Delivery-related questions increased 31% over the previous 30 days.",
+            evidence: ["1,842 support interactions analysed.", "Peak on weekday mornings."],
+            confidence: "high",
+            severity: "high",
+            recommendedAction: "Create an automated delivery-status workflow.",
+            status: "new",
+            source: "sample",
+          },
+          {
+            tenantId: SAMPLE_TENANT,
+            insightId: "demo-usage-sample",
+            createdAt: created,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            category: "AI usage",
+            title: "Agent chats concentrated in one workflow",
+            summary: "68% of chats this week asked for the same status check.",
+            evidence: ["412 chats reviewed.", "Top intent: order status."],
+            confidence: "medium",
+            severity: "medium",
+            recommendedAction: "Publish a pinned status skill for that workflow.",
+            status: "new",
+            source: "sample",
+          },
+          {
+            tenantId: SAMPLE_TENANT,
+            insightId: "demo-tools-sample",
+            createdAt: created,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
+            category: "Reliability",
+            title: "One tool accounts for most failures",
+            summary: "The inventory lookup tool failed 14 times in 7 days.",
+            evidence: ["14 failed tool calls.", "No prompt text stored."],
+            confidence: "high",
+            severity: "medium",
+            recommendedAction: "Retry with backoff or alert when inventory is unreachable.",
+            status: "new",
+            source: "sample",
+          },
+        ],
+      };
+    }
+
+    const SAMPLE = buildSample();
+
+    function sampleInsight(id) {
+      return SAMPLE.insights.find((row) => row.insightId === id) || null;
+    }
+
+    function isSampleInsight(insight) {
+      return !!(insight && (insight.tenantId === SAMPLE_TENANT || sampleInsight(insight.insightId)));
+    }
+
+    function route() {
+      const hash = location.hash.replace(/^#/, "") || "/";
+      const detail = hash.match(/^\/insight\/([^/]+)$/);
+      if (detail) return { name: "detail", id: decodeURIComponent(detail[1]) };
+      return { name: "home" };
+    }
+
+    function b64url(bytes) {
+      let bin = "";
+      bytes.forEach((b) => { bin += String.fromCharCode(b); });
+      return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+
+    function randomUrl(len) {
+      const bytes = new Uint8Array(len);
+      crypto.getRandomValues(bytes);
+      return b64url(bytes);
+    }
+
+    async function challenge(verifier) {
+      const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+      return b64url(new Uint8Array(digest));
+    }
+
+    function tokens() {
+      try { return JSON.parse(sessionStorage.getItem(TOKENS) || "null"); }
+      catch { return null; }
+    }
+
+    function saveTokens(data) {
+      sessionStorage.setItem(TOKENS, JSON.stringify(data));
+    }
+
+    function signOut() {
+      sessionStorage.removeItem(TOKENS);
+      location.hash = "#/";
+      me = null;
+      loginView("");
+    }
+
+    function redirectUri() {
+      return "https://" + cfg.host + "/";
+    }
+
+    async function startLogin() {
+      const verifier = randomUrl(64);
+      const state = randomUrl(16);
+      sessionStorage.setItem(VERIFIER, verifier);
+      sessionStorage.setItem(STATE, state);
+      const ch = await challenge(verifier);
+      location.href =
+        "https://" + cfg.cognitoDomain + "/login"
+        + "?client_id=" + encodeURIComponent(cfg.cognitoClientId)
+        + "&response_type=code"
+        + "&scope=" + encodeURIComponent("email openid profile")
+        + "&redirect_uri=" + encodeURIComponent(redirectUri())
+        + "&code_challenge_method=S256"
+        + "&code_challenge=" + encodeURIComponent(ch)
+        + "&state=" + encodeURIComponent(state);
+    }
+
+    async function exchangeCode(code, state) {
+      if (state && sessionStorage.getItem(STATE) && state !== sessionStorage.getItem(STATE)) {
+        throw new Error("invalid oauth state");
+      }
+      const verifier = sessionStorage.getItem(VERIFIER);
+      if (!verifier) throw new Error("missing PKCE verifier — start login from this browser");
+      const body = new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: cfg.cognitoClientId,
+        code: code,
+        redirect_uri: redirectUri(),
+        code_verifier: verifier,
       });
+      const res = await fetch("https://" + cfg.cognitoDomain + "/oauth2/token", {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: body,
+      });
+      const data = await res.json();
+      if (!res.ok || !data.id_token) {
+        throw new Error(data.error_description || data.error || "token exchange failed");
+      }
+      sessionStorage.removeItem(VERIFIER);
+      sessionStorage.removeItem(STATE);
+      saveTokens(data);
+      history.replaceState({}, "", "/");
+    }
+
+    async function api(path, options) {
+      const t = tokens();
+      const res = await fetch(path, {
+        ...options,
+        headers: {
+          authorization: "Bearer " + (t && t.id_token ? t.id_token : ""),
+          "content-type": "application/json",
+          ...(options && options.headers),
+        },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || data.message || ("HTTP " + res.status));
+      return data;
+    }
+
+    function wowDelta(series) {
+      const values = (series || []).map((point) => Number(point.chats) || 0);
+      if (values.length < 14) return null;
+      const last = values.slice(-7).reduce((sum, n) => sum + n, 0);
+      const prev = values.slice(-14, -7).reduce((sum, n) => sum + n, 0);
+      if (!prev) return null;
+      return Math.round(((last - prev) / prev) * 100);
+    }
+
+    function areaChart(series) {
+      const values = (series || []).map((point) => Number(point.chats) || 0);
+      if (!values.length) return '<p class="muted">No volume yet.</p>';
+      const width = 560;
+      const height = 140;
+      const pad = 10;
+      const max = Math.max(1, ...values);
+      const last = values.length - 1;
+      const x = (i) => pad + (last === 0 ? 0 : (i / last) * (width - pad * 2));
+      const y = (v) => height - pad - (v / max) * (height - pad * 2);
+      const line = values.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join(" ");
+      const area = line + " L" + x(last).toFixed(1) + " " + (height - pad) + " L" + x(0).toFixed(1) + " " + (height - pad) + " Z";
+      const firstDate = series[0].date || "";
+      const lastDate = series[series.length - 1].date || "";
+      return (
+        '<svg class="chart" viewBox="0 0 ' + width + " " + height + '" role="img" aria-label="Chat volume">' +
+          '<path d="' + area + '" fill="color-mix(in srgb, var(--accent) 22%, transparent)"></path>' +
+          '<path d="' + line + '" fill="none" stroke="var(--accent)" stroke-width="2"></path>' +
+        "</svg>" +
+        '<p class="muted">' + firstDate + " – " + lastDate + "</p>"
+      );
+    }
+
+    function intentMix(intents) {
+      return '<div class="mix">' + (intents || []).map((row) =>
+        '<div class="mix-row">' +
+          '<div class="mix-label"><span>' + row.label + "</span><span>" + row.pct + "%</span></div>" +
+          '<div class="mix-track"><span class="mix-fill" style="width:' + row.pct + '%"></span></div>' +
+        "</div>"
+      ).join("") + "</div>";
+    }
+
+    function loginView(message) {
+      app.className = "login";
+      app.innerHTML =
+        "<main>" +
+          '<p class="kicker">Halcyon</p>' +
+          "<h1>Business Insights</h1>" +
+          '<p class="muted">Sign in to see recommendations for your workspace. Without a sandbox you will see a labelled sample, not another customer\'s data.</p>' +
+          (message ? '<p class="err">' + message + "</p>" : "") +
+          '<p><button class="accent" id="login">Open hosted login</button></p>' +
+        "</main>";
+      document.getElementById("login").onclick = () => startLogin().catch((err) => {
+        loginView(err.message);
+      });
+    }
+
+    function shell(inner) {
+      app.className = "";
+      app.innerHTML =
+        '<div class="wrap">' +
+          '<header class="bar">' +
+            "<div>" +
+              '<p class="kicker">Halcyon</p>' +
+              "<h1>Business Insights</h1>" +
+              '<p class="muted">' + (me && me.email ? me.email : "") + " — intelligence, not raw telemetry</p>" +
+            "</div>" +
+            '<button class="ghost" id="out">Sign out</button>' +
+          "</header>" +
+          inner +
+        "</div>";
+      document.getElementById("out").onclick = signOut;
+    }
+
+    function renderHome(insights, metrics, options) {
+      const sample = !!(options && options.sample);
+      const note = (options && options.note) || "";
+      const first = (metrics && metrics[0]) || {};
+      const series = first.series || [];
+      const delta = wowDelta(series);
+      const deltaHtml = delta == null
+        ? '<p>vs prior week</p>'
+        : '<p class="' + (delta >= 0 ? "delta-up" : "delta-down") + '">' +
+            (delta >= 0 ? "+" : "") + delta + "% vs prior week</p>";
+      const banner = sample
+        ? '<p class="banner"><strong>Sample workspace</strong> — not your data. A fictional tenant so you can design Insights before a sandbox is granted. Real metrics stay membership-scoped.</p>'
+        : "";
+      const warn = note ? '<p class="err">' + note + " Showing the sample workspace instead.</p>" : "";
+      const kpis =
+        '<section class="kpis">' +
+          '<article class="card"><h2>' + (first.chats ?? "—") + "</h2><p>Chats today</p></article>" +
+          '<article class="card"><h2>' + (first.inferenceFailures ?? "—") + "</h2><p>Inference failures</p></article>" +
+          '<article class="card"><h2>' + (first.toolCalls ?? "—") + "</h2><p>Tool calls</p></article>" +
+          '<article class="card"><h2>' + (delta == null ? "—" : ((delta >= 0 ? "+" : "") + delta + "%")) + "</h2>" + deltaHtml + "</article>" +
+        "</section>";
+      const charts =
+        '<section class="charts">' +
+          '<article class="card"><p>14-day volume</p>' + areaChart(series) + "</article>" +
+          (sample
+            ? '<article class="card"><p>Intent mix this week</p>' + intentMix(SAMPLE.intents) + "</article>"
+            : "") +
+        "</section>";
+      const cards = (insights || []).map((row) =>
+        '<a class="card insight" href="#/insight/' + encodeURIComponent(row.insightId) + '">' +
+          '<p class="meta">' + row.category + " · " + row.severity + " · " + row.confidence + " · " + row.status + "</p>" +
+          "<h3>" + row.title + "</h3>" +
+          '<p class="muted">' + row.summary + "</p>" +
+        "</a>"
+      ).join("");
+      const empty = (!insights || !insights.length)
+        ? '<p class="muted">No insights yet for this workspace.</p>'
+        : "";
+      shell(banner + warn + kpis + charts + '<div class="insights">' + cards + empty + "</div>");
+    }
+
+    function renderDetail(insight, options) {
+      const sample = !!(options && options.sample) || isSampleInsight(insight);
+      const evidence = (insight.evidence || []).map((item) => "<li>" + item + "</li>").join("");
+      const actions = (insight.status === "new" || insight.status === "acknowledged")
+        ? '<div class="actions">' +
+            '<button class="accent" data-status="approved">Approve</button>' +
+            '<button class="ghost" data-status="dismissed">Dismiss</button>' +
+          "</div>"
+        : "";
+      const banner = sample
+        ? '<p class="banner"><strong>Sample workspace</strong> — not your data. Approve and dismiss stay in this browser.</p>'
+        : "";
+      shell(
+        banner +
+        '<p><a href="#/">← Insights</a></p>' +
+        '<article class="card" style="margin-top:1rem">' +
+          '<p class="meta sev-' + insight.severity + '">' + insight.category + " · " + insight.periodStart + " – " + insight.periodEnd + "</p>" +
+          "<h2>" + insight.title + "</h2>" +
+          "<p>" + insight.summary + "</p>" +
+          '<p class="muted">Confidence ' + insight.confidence + " · " + insight.status + "</p>" +
+          "<h3>Evidence</h3><ul class=\"evidence\">" + evidence + "</ul>" +
+          "<h3>Recommended action</h3><p>" + insight.recommendedAction + "</p>" +
+          actions +
+        "</article>"
+      );
+      app.querySelectorAll("[data-status]").forEach((btn) => {
+        btn.onclick = async () => {
+          const next = btn.getAttribute("data-status");
+          if (sample) {
+            insight.status = next;
+            renderDetail(insight, { sample: true });
+            return;
+          }
+          try {
+            const data = await api("/api/insights/" + encodeURIComponent(insight.insightId) + "/status", {
+              method: "POST",
+              body: JSON.stringify({ status: next }),
+            });
+            renderDetail(data.insight, { sample: false });
+          } catch (err) {
+            shell('<p class="err">' + err.message + "</p>");
+          }
+        };
+      });
+    }
+
+    function showSample(view, note) {
+      if (view && view.name === "detail") {
+        const local = sampleInsight(view.id);
+        if (local) {
+          renderDetail(local, { sample: true });
+          return;
+        }
+      }
+      renderHome(SAMPLE.insights, [SAMPLE.metrics], { sample: true, note: note || "" });
+    }
+
+    async function loadApp() {
+      const view = route();
+      try {
+        const sandboxes = await api("/api/sandboxes");
+        me = sandboxes.me;
+        const hasMembership = !!(sandboxes.sandboxes && sandboxes.sandboxes.length);
+        if (!hasMembership) {
+          showSample(view);
+          return;
+        }
+        try {
+          if (view.name === "detail") {
+            const local = sampleInsight(view.id);
+            if (local) {
+              renderDetail(local, { sample: true });
+              return;
+            }
+            const data = await api("/api/insights/" + encodeURIComponent(view.id));
+            renderDetail(data.insight, { sample: false });
+            return;
+          }
+          const [insights, metrics] = await Promise.all([
+            api("/api/insights"),
+            api("/api/metrics/summary"),
+          ]);
+          renderHome(insights.insights, metrics.metrics, { sample: false });
+        } catch (err) {
+          if (/sign in|unauthorized|401/i.test(err.message)) throw err;
+          showSample(view, err.message);
+        }
+      } catch (err) {
+        if (/sign in|unauthorized|401/i.test(err.message)) {
+          sessionStorage.removeItem(TOKENS);
+          me = null;
+          loginView(err.message);
+          return;
+        }
+        showSample(view, err.message);
+      }
+    }
+
+    async function boot() {
+      try {
+        const res = await fetch("/config.json", { cache: "no-store" });
+        if (!res.ok) throw new Error("config " + res.status);
+        cfg = await res.json();
+      } catch {
+        app.innerHTML = '<div class="login"><main><p class="err">Config missing. Apply terraform so /config.json exists.</p></main></div>';
+        return;
+      }
+      const params = new URLSearchParams(location.search);
+      if (params.get("code")) {
+        try {
+          await exchangeCode(params.get("code"), params.get("state"));
+        } catch (err) {
+          loginView(err.message);
+          return;
+        }
+      }
+      if (!tokens() || !tokens().id_token) {
+        loginView("");
+        return;
+      }
+      window.onhashchange = () => loadApp();
+      loadApp();
+    }
+
+    boot();
   </script>
 </body>
 </html>

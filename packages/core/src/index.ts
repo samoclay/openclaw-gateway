@@ -20,3 +20,13 @@ export {
   type AuthorizedChatTurn,
   type SandboxRecord,
 } from "./authorize-chat";
+export {
+  authorizeInsightRead,
+  authorizeInsightStatusChange,
+  resolveTenantId,
+  tenantIdsForMemberships,
+  type InsightRecord,
+  type InsightStatus,
+  type SandboxTenantRow,
+} from "./authorize-insights";
+export { assertSafeTenantId, bindTenantPredicate } from "./sql-tenant";
