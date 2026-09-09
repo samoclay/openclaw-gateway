@@ -6,6 +6,17 @@ Inference stays on your **Mac Studio** (Ollama + OpenClaw). This repo is the cli
 
 Isolation: one OpenClaw agent per sandbox. Client A cannot read Client B unless an admin explicitly grants the same sandbox (shared memory on purpose).
 
+## Local full console vs hosted edge
+
+| | **Local (this repo)** | **Hosted (`sam-terraform`)** |
+|---|---|---|
+| UI | Next.js `apps/portal` — `/admin`, sandbox list, streaming chat | `site/index.html` landing + Cognito only (no admin UI yet) |
+| Auth | Cookie + `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Cognito; bootstrap admin = `openclaw_admin_email` |
+| Gateway | Portal → `http://127.0.0.1:18789` | Mac **sidecar** → Gateway; AWS never holds the token |
+| Grant sandboxes | Click `/admin` | Curl `/api/admin/*` with admin ID token — see [`sam-terraform/docs/openclaw-admin.md`](../sam-terraform/docs/openclaw-admin.md) |
+
+Signup on staging never assigns a sandbox until an admin grants membership. Dual-repo contract: [`INTEGRATION.md`](INTEGRATION.md).
+
 ## Local run
 
 Requires **Node 24** and **npm 11+** (`engines` are strict).
@@ -46,9 +57,9 @@ Local auth is an HttpOnly cookie (`halcyon_session`). Do not expose this Next.js
 GitHub Actions on `master` / `main` / `staging` and pull requests:
 
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — Node 24, **npm@latest** CLI, **`npm ci`**, `npm audit --audit-level=high`, tests, portal build. `contents: read` only. SHA-pinned actions.
-- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) — branch **staging** uses GitHub Environment `staging`; **master**/**main** use `production`. Packages [`site/index.html`](site/index.html) (hosted CloudFront SPA, not the Next.js BFF). S3 upload uses that environment’s `AWS_ROLE_ARN` and `ARTIFACTS_BUCKET` only — staging cannot publish to the prod bucket.
+- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) — branch **staging** uses GitHub Environment `staging`; **master**/**main** use `production`. Packages [`site/index.html`](site/index.html) (hosted CloudFront SPA, not the Next.js BFF). S3 upload uses that environment’s `AWS_ROLE_ARN` and `ARTIFACTS_BUCKET` only — staging cannot publish to the prod bucket. Staging publish then opens/updates a sam-terraform PR (`bots/openclaw-spa-pin` → `main`) that pins `openclaw_spa_version` in `envs/staging/staging.tfvars` (needs secret `SAM_TERRAFORM_TOKEN`).
 
-Pin that SHA in sam-terraform `envs/staging/staging.tfvars` or `envs/production/production.tfvars` and apply **that** env dir. Login host comes from terraform-managed `/config.json`.
+Production: pin the SHA manually in `envs/production/production.tfvars` and apply that env dir. Staging: merge the auto pin PR into **main** (or pin `staging.tfvars` yourself). Login host comes from terraform-managed `/config.json`.
 
 Dependabot weekly updates npm and GitHub Actions. Terraform/IaC scanning and Lambda zip publish stay in `sam-terraform`.
 
@@ -64,4 +75,6 @@ Dependabot weekly updates npm and GitHub Actions. Terraform/IaC scanning and Lam
 | Agent memory / transcripts | OpenClaw SQLite on the Mac |
 | Models | Ollama on the Mac (`:18789` / `:11434` stay loopback) |
 
-Hosted contract: [`sam-terraform/docs/openclaw-integration.md`](../sam-terraform/docs/openclaw-integration.md). Do **not** add ECS Fargate, RDS, or a public Gateway.
+Hosted contract: [`sam-terraform/docs/openclaw-integration.md`](../sam-terraform/docs/openclaw-integration.md).  
+Admin (tokens, curl, sidecar): [`sam-terraform/docs/openclaw-admin.md`](../sam-terraform/docs/openclaw-admin.md).  
+Do **not** add ECS Fargate, RDS, or a public Gateway.
