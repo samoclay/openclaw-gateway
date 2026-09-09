@@ -31,7 +31,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Node.js 24
-        uses: actions/setup-node@49933ea5288ca35ae9fc8eb8f7d04bd2b972fcc0 # v4.4.0
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "24"
           cache: npm
@@ -89,3 +89,70 @@ jobs:
             --content-type "application/json" \
             --checksum-algorithm SHA256
           echo "Published ${prefix}/  pin openclaw_spa_version = ${GITHUB_SHA}"
+
+      # Cross-repo pin PR needs SAM_TERRAFORM_TOKEN (GITHUB_TOKEN cannot open PRs elsewhere).
+      # Prefer a fine-grained PAT: contents + pull requests on samoclay/sam-terraform only.
+      - name: Warn if staging pin token missing
+        if: github.ref_name == 'staging' && vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != '' && secrets.SAM_TERRAFORM_TOKEN == ''
+        run: |
+          echo "::warning::SPA uploaded but SAM_TERRAFORM_TOKEN is unset; skipped sam-terraform pin PR. Add a repo secret with contents:write + pull-requests:write on samoclay/sam-terraform."
+
+      - name: Open or update sam-terraform staging pin PR
+        if: >
+          github.ref_name == 'staging' &&
+          vars.AWS_ROLE_ARN != '' &&
+          vars.ARTIFACTS_BUCKET != '' &&
+          secrets.SAM_TERRAFORM_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.SAM_TERRAFORM_TOKEN }}
+          SPA_SHA: ${{ github.sha }}
+          TF_REPO: samoclay/sam-terraform
+          PIN_BRANCH: bots/openclaw-spa-pin
+          BASE_BRANCH: main
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          gh repo clone "$TF_REPO" "$tmp" -- --branch "$BASE_BRANCH" --depth 1
+          cd "$tmp"
+          git config user.name "openclaw-publish[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$PIN_BRANCH"
+
+          tfvars=envs/staging/staging.tfvars
+          if [[ ! -f "$tfvars" ]]; then
+            echo "::error::${tfvars} missing on ${BASE_BRANCH}. Merge the OpenClaw staging stack to main before pin PRs can open."
+            exit 1
+          fi
+          if grep -qE '^[[:space:]]*openclaw_spa_version[[:space:]]*=' "$tfvars"; then
+            sed -i.bak -E "s|^[[:space:]]*openclaw_spa_version[[:space:]]*=.*|openclaw_spa_version = \"${SPA_SHA}\"|" "$tfvars"
+          elif grep -qE '^[[:space:]]*#[[:space:]]*openclaw_spa_version' "$tfvars"; then
+            sed -i.bak -E "s|^[[:space:]]*#[[:space:]]*openclaw_spa_version[[:space:]]*=.*|openclaw_spa_version = \"${SPA_SHA}\"|" "$tfvars"
+          else
+            printf '\nopenclaw_spa_version = "%s"\n' "$SPA_SHA" >> "$tfvars"
+          fi
+          rm -f "${tfvars}.bak"
+
+          if git diff --quiet; then
+            echo "Pin already at ${SPA_SHA}; nothing to do"
+            exit 0
+          fi
+
+          body="Auto-opened by openclaw Publish after uploading \`spa/${SPA_SHA}/\` to the staging artifacts bucket.
+
+Pins \`envs/staging/staging.tfvars\` only. Merge into \`main\` to apply the staging env (path-based apply).
+
+Source: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          git add "$tfvars"
+          git commit -m "chore(openclaw): pin spa ${SPA_SHA:0:12} for staging"
+          git push -u origin "$PIN_BRANCH" --force
+
+          title="chore(openclaw): pin SPA ${SPA_SHA:0:12} (staging)"
+          if gh pr view "$PIN_BRANCH" --repo "$TF_REPO" --json number -q .number >/dev/null 2>&1; then
+            gh pr edit "$PIN_BRANCH" --repo "$TF_REPO" --title "$title" --body "$body"
+            echo "Updated existing pin PR for ${SPA_SHA}"
+          else
+            gh pr create --repo "$TF_REPO" --base "$BASE_BRANCH" --head "$PIN_BRANCH" \
+              --title "$title" --body "$body"
+            echo "Opened pin PR for ${SPA_SHA}"
+          fi

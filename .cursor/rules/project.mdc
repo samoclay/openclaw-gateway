@@ -1,0 +1,28 @@
+---
+description: Always-on OpenClaw map — dual-repo, isolation, hosted SPA
+alwaysApply: true
+---
+
+# OpenClaw (this repo)
+
+This repo is the **portal + contract**, not AWS. Infra is `sam-terraform`. Do not add Fargate, RDS, or a public API Gateway.
+
+## Isolation
+
+Access is **sandbox membership**. v1 `tenantId` equals `sandboxId`. Never trust `tenantId`, `agentId`, or `model` from the client. Resolve tenant from the sandbox row on the server.
+
+## UX
+
+- Local: Next.js `apps/portal` — `/admin`, `/sandboxes`, `/insights`
+- Hosted customers: [`site/index.html`](site/index.html) (Cognito PKCE + Insights). Not the Next.js BFF.
+- No sandbox membership → labelled Sample workspace in the hosted SPA (in-page only). Do not seed Dynamo for a tenant the caller does not belong to.
+
+## Telemetry
+
+Prompts and responses must not be stored. Stamp events with `@halcyon/telemetry`. Sidecar `telemetry` is never forwarded to browsers.
+
+## CI
+
+One npm job: `npm ci`, audit, `npm test`, portal build, `scripts/package-spa.sh`. Do not add AWS deploy workflows here.
+
+Read [`.cursor/architecture.md`](.cursor/architecture.md) only when changing the lake or BI product shape.

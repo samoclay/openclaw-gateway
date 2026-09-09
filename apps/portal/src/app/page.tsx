@@ -37,6 +37,9 @@ export default function HomePage() {
           </p>
         </div>
         <div className="flex gap-3 text-sm">
+          <Link className="text-[var(--accent)]" href="/insights">
+            Insights
+          </Link>
           {me?.role === "admin" ? (
             <Link className="text-[var(--accent)]" href="/admin">
               Admin

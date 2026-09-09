@@ -43,6 +43,7 @@ export function createPortalService(
     const agentId = slugAgentId(sandboxId);
     await store.putSandbox({
       sandboxId,
+      tenantId: sandboxId,
       name: args.name,
       openclawAgentId: agentId,
       modelRef: args.modelRef,
@@ -74,6 +75,7 @@ export function createPortalService(
           ? [
               {
                 id: row.sandboxId,
+                tenantId: row.tenantId || row.sandboxId,
                 name: row.name,
                 modelRef: row.modelRef,
                 openclawAgentId: row.openclawAgentId,
