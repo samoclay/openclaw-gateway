@@ -11,7 +11,8 @@ name: Publish
 on:
   push:
     branches: [master, main, staging]
-    tags: ["v*.*.*"]
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
 
 permissions:
@@ -23,7 +24,7 @@ jobs:
   publish-spa:
     name: Package SPA and publish
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'staging' && 'staging' || 'production' }}
+    environment: ${{ github.ref == 'refs/heads/staging' && 'staging' || 'production' }}
     env:
       AWS_REGION: eu-west-2
     steps:
@@ -36,8 +37,10 @@ jobs:
         if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} must be vMAJOR.MINOR.PATCH."
+          tag="$GITHUB_REF_NAME"
+          re='^v[0-9]+\.[0-9]+\.[0-9]+$'
+          if [[ ! "$tag" =~ $re ]]; then
+            echo "::error::Tag $tag must be vMAJOR.MINOR.PATCH."
             exit 1
           fi
           git fetch origin master main
@@ -47,7 +50,7 @@ jobs:
           if git merge-base --is-ancestor "$GITHUB_SHA" origin/main 2>/dev/null; then
             exit 0
           fi
-          echo "::error::Tag ${GITHUB_REF_NAME} must point at a commit on master or main."
+          echo "::error::Tag $tag must point at a commit on master or main."
           exit 1
 
       - name: Setup Node.js 24
@@ -82,33 +85,31 @@ jobs:
           set -euo pipefail
           notes=$(mktemp)
           printf '%s\n' \
-            "Halcyon Insights ${GITHUB_REF_NAME}" \
+            "Halcyon Insights $GITHUB_REF_NAME" \
             "" \
             "Hosted artifact is site/index.html (CloudFront SPA), not the local Next.js BFF." \
             "" \
             "Pin in sam-terraform envs/production/production.tfvars:" \
             "" \
-            "openclaw_spa_version = \"${GITHUB_SHA}\"" \
+            "openclaw_spa_version = \"$GITHUB_SHA\"" \
             "" \
-            "S3 key: spa/${GITHUB_SHA}/index.html" \
+            "S3 key: spa/$GITHUB_SHA/index.html" \
             > "$notes"
-          assets=(
-            dist/openclaw-spa-"${GITHUB_SHA}".zip
-            dist/spa/manifest.json
-          )
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
-            gh release edit "${GITHUB_REF_NAME}" \
-              --title "Halcyon Insights ${GITHUB_REF_NAME}" \
+          zip="dist/openclaw-spa-$GITHUB_SHA.zip"
+          man="dist/spa/manifest.json"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$zip" "$man" --clobber
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "Halcyon Insights $GITHUB_REF_NAME" \
               --notes-file "$notes"
           else
-            gh release create "${GITHUB_REF_NAME}" "${assets[@]}" \
-              --title "Halcyon Insights ${GITHUB_REF_NAME}" \
+            gh release create "$GITHUB_REF_NAME" "$zip" "$man" \
+              --title "Halcyon Insights $GITHUB_REF_NAME" \
               --notes-file "$notes"
           fi
 
       - name: Require artifact publish config
-        if: github.ref_type != 'tag' || github.ref_name == 'staging'
+        if: github.ref_type == 'branch'
         env:
           ROLE: ${{ vars.AWS_ROLE_ARN }}
           BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
@@ -117,7 +118,7 @@ jobs:
           if [ -n "${ROLE}" ] && [ -n "${BUCKET}" ]; then
             exit 0
           fi
-          if [ "${GITHUB_REF_NAME}" = "staging" ]; then
+          if [ "$GITHUB_REF_NAME" = "staging" ]; then
             echo "::error::Set GitHub Environment variables AWS_ROLE_ARN and ARTIFACTS_BUCKET on 'staging' (terraform output openclaw_github_actions)."
             exit 1
           fi
