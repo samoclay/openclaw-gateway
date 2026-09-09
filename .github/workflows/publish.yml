@@ -1,6 +1,6 @@
 # Publish hosted-SPA artifacts (site/index.html, not the Next.js BFF).
-# Branch push → S3 spa/<git-sha>/ and (staging) pin PR. No GitHub Release.
-# Tag v*.*.* on master/main → production S3 + GitHub Release (semver title, SHA in notes).
+# Merge to staging/master → S3 spa/<git-sha>/ (required on staging).
+# Tag vMAJOR.MINOR.PATCH on master/main → GitHub Release (semver) + production S3.
 # Terraform pins the git SHA via openclaw_spa_version (S3 key spa/<sha>/).
 #
 # Do NOT set AWS_ROLE_ARN in workflow/job env — the AWS SDK treats that as
@@ -24,21 +24,22 @@ jobs:
     name: Package SPA and publish
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'staging' && 'staging' || 'production' }}
-    if: >
-      github.ref_name == 'staging' ||
-      github.ref_name == 'main' ||
-      github.ref_name == 'master' ||
-      (github.ref_type == 'tag' && startsWith(github.ref_name, 'v'))
     env:
       AWS_REGION: eu-west-2
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
 
       - name: Require version tags on master or main
         if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} must be vMAJOR.MINOR.PATCH."
+            exit 1
+          fi
           git fetch origin master main
           if git merge-base --is-ancestor "$GITHUB_SHA" origin/master 2>/dev/null; then
             exit 0
@@ -74,7 +75,7 @@ jobs:
         run: bash scripts/package-spa.sh
 
       - name: GitHub Release
-        if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -91,11 +92,36 @@ jobs:
             "" \
             "S3 key: spa/${GITHUB_SHA}/index.html" \
             > "$notes"
-          gh release create "${GITHUB_REF_NAME}" \
-            dist/openclaw-spa-"${GITHUB_SHA}".zip \
-            dist/spa/manifest.json \
-            --title "Halcyon Insights ${GITHUB_REF_NAME}" \
-            --notes-file "$notes"
+          assets=(
+            dist/openclaw-spa-"${GITHUB_SHA}".zip
+            dist/spa/manifest.json
+          )
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber
+            gh release edit "${GITHUB_REF_NAME}" \
+              --title "Halcyon Insights ${GITHUB_REF_NAME}" \
+              --notes-file "$notes"
+          else
+            gh release create "${GITHUB_REF_NAME}" "${assets[@]}" \
+              --title "Halcyon Insights ${GITHUB_REF_NAME}" \
+              --notes-file "$notes"
+          fi
+
+      - name: Require artifact publish config
+        if: github.ref_type != 'tag' || github.ref_name == 'staging'
+        env:
+          ROLE: ${{ vars.AWS_ROLE_ARN }}
+          BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ROLE}" ] && [ -n "${BUCKET}" ]; then
+            exit 0
+          fi
+          if [ "${GITHUB_REF_NAME}" = "staging" ]; then
+            echo "::error::Set GitHub Environment variables AWS_ROLE_ARN and ARTIFACTS_BUCKET on 'staging' (terraform output openclaw_github_actions)."
+            exit 1
+          fi
+          echo "::warning::Skipping S3: GitHub Environment production has no AWS_ROLE_ARN/ARTIFACTS_BUCKET (deploy_openclaw is false)."
 
       - name: Configure AWS credentials (OIDC)
         if: vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != ''
