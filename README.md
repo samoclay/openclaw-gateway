@@ -57,9 +57,9 @@ Local auth is an HttpOnly cookie (`halcyon_session`). Do not expose this Next.js
 GitHub Actions on `master` / `main` / `staging` and pull requests:
 
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — Node 24, **npm@latest** CLI, **`npm ci`**, `npm audit --audit-level=high`, tests, portal build. `contents: read` only. SHA-pinned actions.
-- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) — branch **staging** uses GitHub Environment `staging`; **master**/**main** use `production`. Packages [`site/index.html`](site/index.html) (hosted CloudFront SPA, not the Next.js BFF). S3 upload uses that environment’s `AWS_ROLE_ARN` and `ARTIFACTS_BUCKET` only — staging cannot publish to the prod bucket. Staging publish then opens/updates a sam-terraform PR (`bots/openclaw-spa-pin` → `main`) that pins `openclaw_spa_version` in `envs/staging/staging.tfvars` (needs secret `SAM_TERRAFORM_TOKEN`).
+- [`.github/workflows/publish.yml`](.github/workflows/publish.yml) — branch **staging** uses GitHub Environment `staging`; **master**/**main** use `production`. Packages [`site/index.html`](site/index.html) (hosted CloudFront SPA, not the Next.js BFF). S3 key is always `spa/<git-sha>/`; terraform pin `openclaw_spa_version` is that SHA. GitHub Releases are **semver tags** (`git tag v0.1.0 && git push origin v0.1.0` on `master`/`main` only) — not SHA tags. Staging merges do not create Releases. S3 upload uses that environment’s `AWS_ROLE_ARN` and `ARTIFACTS_BUCKET` only. Staging publish then opens/updates a sam-terraform PR (`bots/openclaw-spa-pin` → `main`) that pins the SHA in `envs/staging/staging.tfvars` (needs secret `SAM_TERRAFORM_TOKEN`).
 
-Production: pin the SHA manually in `envs/production/production.tfvars` and apply that env dir. Staging: merge the auto pin PR into **main** (or pin `staging.tfvars` yourself). Login host comes from terraform-managed `/config.json`.
+Production: pin the SHA from the Release notes in `envs/production/production.tfvars` and apply that env dir. Staging: merge the auto pin PR into **main** (or pin `staging.tfvars` yourself). Login host comes from terraform-managed `/config.json`.
 
 Dependabot weekly updates npm and GitHub Actions. Terraform/IaC scanning and Lambda zip publish stay in `sam-terraform`.
 
