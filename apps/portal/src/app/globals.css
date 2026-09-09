@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0c1014;
+  --bg-raised: #141b22;
+  --line: #243040;
+  --text: #e8eef4;
+  --muted: #8aa0b5;
+  --accent: #3ee0b2;
+  --danger: #ff6b7a;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+body {
+  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+}

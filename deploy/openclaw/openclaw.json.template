@@ -1,0 +1,50 @@
+{
+  "agents": {
+    "defaults": {
+      "sandbox": {
+        "mode": "all",
+        "scope": "agent"
+      }
+    },
+    "list": []
+  },
+  "gateway": {
+    "auth": {
+      "mode": "token",
+      "token": "REPLACE_WITH_GATEWAY_TOKEN"
+    },
+    "bind": "loopback",
+    "mode": "local",
+    "port": 18789,
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true
+        }
+      }
+    }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "ollama": {
+        "api": "ollama",
+        "apiKey": "ollama-local",
+        "baseUrl": "http://127.0.0.1:11434",
+        "models": [
+          {
+            "id": "qwen3.6:latest",
+            "name": "qwen3.6:latest"
+          }
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "ollama": {
+        "enabled": true
+      }
+    }
+  }
+}

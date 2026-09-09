@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, master, staging]
+
+permissions:
+  contents: read
+
+jobs:
+  npm:
+    name: npm ci, audit, test, build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@49933ea5288ca35ae9fc8eb8f7d04bd2b972fcc0 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Use latest npm CLI
+        run: npm install -g npm@latest
+
+      - name: Install from lockfile
+        run: npm ci
+
+      - name: Audit high+ vulnerabilities
+        run: npm audit --audit-level=high
+
+      - name: Test
+        run: npm test
+
+      - name: Build portal
+        run: npm run build -w portal
+
+      - name: Package hosted SPA
+        run: bash scripts/package-spa.sh

@@ -1,0 +1,91 @@
+# Publish versioned hosted-SPA artifacts.
+# Staging branch → GitHub Environment staging (staging artifacts bucket only).
+# master/main → GitHub Environment production.
+# Terraform pins the git SHA via openclaw_spa_version (S3 key spa/<sha>/).
+#
+# The local Next.js portal is a cookie BFF and is not an AWS artifact.
+# Do NOT set AWS_ROLE_ARN in workflow/job env — the AWS SDK treats that as
+# web-identity config and fails before OIDC exchange.
+# Do NOT default ARTIFACTS_BUCKET to the other environment's bucket.
+name: Publish
+
+on:
+  push:
+    branches: [master, main, staging]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish-spa:
+    name: Package SPA and publish
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'staging' && 'staging' || 'production' }}
+    if: github.ref_name == 'staging' || github.ref_name == 'main' || github.ref_name == 'master'
+    env:
+      AWS_REGION: eu-west-2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@49933ea5288ca35ae9fc8eb8f7d04bd2b972fcc0 # v4.4.0
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Use latest npm CLI
+        run: npm install -g npm@latest
+
+      - name: Install from lockfile
+        run: npm ci
+
+      - name: Audit high+ vulnerabilities
+        run: npm audit --audit-level=high
+
+      - name: Test
+        run: npm test
+
+      - name: Build portal (verify only; not an AWS artifact)
+        run: npm run build -w portal
+
+      - name: Package hosted SPA
+        run: bash scripts/package-spa.sh
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PIN_FILE: ${{ github.ref_name == 'staging' && 'envs/staging/staging.tfvars' || 'envs/production/production.tfvars' }}
+        run: |
+          set -euo pipefail
+          tag="spa-${GITHUB_SHA}"
+          gh release create "${tag}" \
+            dist/openclaw-spa-"${GITHUB_SHA}".zip \
+            dist/spa/manifest.json \
+            --title "OpenClaw SPA ${GITHUB_SHA:0:12}" \
+            --notes "Hosted CloudFront SPA. Pin in sam-terraform ${PIN_FILE}: openclaw_spa_version = ${GITHUB_SHA}. S3 key spa/${GITHUB_SHA}/index.html. Cognito stays in terraform /config.json. Staging publish cannot update the prod function."
+
+      - name: Configure AWS credentials (OIDC)
+        if: vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != ''
+        uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Upload immutable SPA to artifact bucket
+        if: vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != ''
+        env:
+          ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
+        run: |
+          set -euo pipefail
+          prefix="s3://${ARTIFACTS_BUCKET}/spa/${GITHUB_SHA}"
+          aws s3 cp dist/spa/index.html "${prefix}/index.html" \
+            --content-type "text/html; charset=utf-8" \
+            --checksum-algorithm SHA256
+          aws s3 cp dist/spa/manifest.json "${prefix}/manifest.json" \
+            --content-type "application/json" \
+            --checksum-algorithm SHA256
+          echo "Published ${prefix}/  pin openclaw_spa_version = ${GITHUB_SHA}"
