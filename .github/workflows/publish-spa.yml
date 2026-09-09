@@ -20,7 +20,6 @@ jobs:
   publish-spa:
     name: Package SPA and publish
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'staging' && 'staging' || 'production' }}
     if: github.ref_name == 'staging' || github.ref_name == 'main' || github.ref_name == 'master'
     env:
       AWS_REGION: eu-west-2
