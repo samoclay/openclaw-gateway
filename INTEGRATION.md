@@ -86,6 +86,8 @@ Prod flag: `deploy_openclaw = false` in `envs/production/production.tfvars` unti
 | Hosted SPA `site/index.html` | this repo `.github/workflows/publish.yml` | `openclaw_spa_version` in that env’s tfvars |
 | Lambda zip | `sam-terraform` `.github/workflows/publish-openclaw.yml` | `openclaw_lambda_version` |
 
+**SPA versions:** CloudFront pin is the **git SHA** (`openclaw_spa_version`, S3 `spa/<sha>/`). GitHub Releases are **semver** (`v0.1.0` tags on `master`/`main`); notes include the SHA to pin. Branch pushes do not create Releases.
+
 **Staging SPA pin PR:** After a successful upload to the staging artifacts bucket, Publish opens or updates PR branch `bots/openclaw-spa-pin` → base `main` on `samoclay/sam-terraform`, setting `openclaw_spa_version` in `envs/staging/staging.tfvars` only (staging vs prod is the `envs/` folder, not a git branch). Merge that PR to apply staging. Requires repo secret `SAM_TERRAFORM_TOKEN` (fine-grained PAT: contents + pull requests on `samoclay/sam-terraform`). Production pins stay manual in `production.tfvars`.
 
 Next.js `apps/portal` is local-only. Empty version strings mean terraform packages from its own `functions/` tree (first apply). After apply, set GitHub Environment **Variables** from that env’s `terraform output openclaw_github_actions` (`AWS_ROLE_ARN`, `ARTIFACTS_BUCKET`) — never copy the prod role onto the staging environment.
