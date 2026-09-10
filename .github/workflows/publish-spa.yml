@@ -55,22 +55,34 @@ jobs:
         run: bash scripts/package-spa.sh
 
       - name: Require artifact publish config
+        id: cfg
         env:
           ROLE: ${{ vars.AWS_ROLE_ARN }}
           BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
         run: |
           set -euo pipefail
+          role_staging=no
+          case "$ROLE" in *Staging*) role_staging=yes ;; esac
+          echo "publish_diag ref=$GITHUB_REF_NAME role_staging=$role_staging bucket=$([ -n "$BUCKET" ] && echo set || echo empty)"
+          s3=0
           if [ -n "$ROLE" ] && [ -n "$BUCKET" ]; then
-            exit 0
-          fi
-          if [ "$GITHUB_REF_NAME" = "staging" ]; then
+            if [ "$GITHUB_REF_NAME" = "staging" ]; then
+              s3=1
+            elif [ "$role_staging" = "yes" ]; then
+              echo "::warning::Skipping S3: production Environment points at BURoleForOpenclawSiteDeployStaging; that role only trusts environment:staging + ref staging. Unset AWS_ROLE_ARN on GitHub Environment production, or set the production role."
+            else
+              s3=1
+            fi
+          elif [ "$GITHUB_REF_NAME" = "staging" ]; then
             echo "::error::Set GitHub Environment variables AWS_ROLE_ARN and ARTIFACTS_BUCKET on staging."
             exit 1
+          else
+            echo "::warning::Skipping S3: production Environment has no AWS_ROLE_ARN/ARTIFACTS_BUCKET."
           fi
-          echo "::warning::Skipping S3: production Environment has no AWS_ROLE_ARN/ARTIFACTS_BUCKET."
+          echo "s3=$s3" >> "$GITHUB_OUTPUT"
 
       - name: Configure AWS credentials (OIDC)
-        if: vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != ''
+        if: steps.cfg.outputs.s3 == '1'
         uses: aws-actions/configure-aws-credentials@b47578312673ae6fa5b5096b330d9fbac3d116df # v4.2.1
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
@@ -78,7 +90,7 @@ jobs:
           audience: sts.amazonaws.com
 
       - name: Upload immutable SPA to artifact bucket
-        if: vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != ''
+        if: steps.cfg.outputs.s3 == '1'
         env:
           ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
         run: |
@@ -93,7 +105,7 @@ jobs:
           echo "Published ${prefix}/  pin openclaw_spa_version = ${GITHUB_SHA}"
 
       - name: Open or update sam-terraform staging pin PR
-        if: github.ref_name == 'staging' && vars.AWS_ROLE_ARN != '' && vars.ARTIFACTS_BUCKET != ''
+        if: github.ref_name == 'staging' && steps.cfg.outputs.s3 == '1'
         env:
           GH_TOKEN: ${{ secrets.SAM_TERRAFORM_TOKEN }}
           SPA_SHA: ${{ github.sha }}
@@ -106,6 +118,8 @@ jobs:
             echo "::warning::SPA uploaded but SAM_TERRAFORM_TOKEN is unset; skipped sam-terraform pin PR."
             exit 0
           fi
+          # gh clone uses GH_TOKEN; raw git push does not unless the helper is installed.
+          gh auth setup-git
           tmp=$(mktemp -d)
           gh repo clone "$TF_REPO" "$tmp" -- --branch "$BASE_BRANCH" --depth 1
           cd "$tmp"
