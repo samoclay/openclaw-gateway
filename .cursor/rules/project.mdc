@@ -14,7 +14,7 @@ Access is **sandbox membership**. v1 `tenantId` equals `sandboxId`. Never trust 
 ## UX
 
 - Local: Next.js `apps/portal` — `/admin`, `/sandboxes`, `/insights`
-- Hosted customers: [`site/index.html`](site/index.html) (Cognito PKCE + Insights). Not the Next.js BFF.
+- Hosted: [`site/index.html`](site/index.html) at `https://portal.halcyonlabs.uk` (prod, gated) and `https://staging-portal.halcyonlabs.uk`. Hash `#/admin` is Access (grant sandboxes) for allowlisted Cognito admins. Not `staging.halcyonlabs.uk` (that is the marketing preview). Not the Next.js BFF.
 - No sandbox membership → labelled Sample workspace in the hosted SPA (in-page only). Do not seed Dynamo for a tenant the caller does not belong to.
 
 ## Telemetry
@@ -24,5 +24,7 @@ Prompts and responses must not be stored. Stamp events with `@halcyon/telemetry`
 ## CI
 
 One npm job: `npm ci`, audit, `npm test`, portal build, `scripts/package-spa.sh`. Do not add AWS deploy workflows here.
+
+Inference hosts (Studio/WSL): sibling **`bootstrap-ollama`**. This repo keeps the Gateway **template** only.
 
 Read [`.cursor/architecture.md`](.cursor/architecture.md) only when changing the lake or BI product shape.

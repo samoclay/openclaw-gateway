@@ -8,8 +8,9 @@ alwaysApply: false
 
 Customers on CloudFront get [`site/index.html`](site/index.html), not Next.js. Auth is Cognito PKCE; send the **id token** as `Authorization: Bearer` (HTTP API JWT).
 
-- Hash routes only (`#/`, `#/insight/:id`). No new CloudFront behaviors.
-- Call `/api/sandboxes` **before** KPIs or insights.
+- Hash routes only (`#/`, `#/insight/:id`, `#/admin`). No new CloudFront behaviors.
+- Admins (`me.role === admin`) get Access at `#/admin`. Clients never see that nav.
+- Call `/api/sandboxes` **before** KPIs, insights, or admin APIs.
 - No sandbox (or insights API failure) → labelled Sample workspace (in-page `sample` tenant). Never mix it with live rows or send `tenantId` from the client.
 - `api()` must surface `data.error` or `data.message` (API Gateway uses `message`).
 

@@ -28,7 +28,7 @@ Local UI: `/insights`. Hosted SPA (`site/index.html`) is PKCE login + Insights d
 
 | Concern | This repo (`openclaw`) | `sam-terraform` |
 |---|---|---|
-| Full admin UI + chat UI | Yes — `apps/portal` (`npm run dev` → `/admin`, `/sandboxes/[id]`) | Insights dashboard after Cognito PKCE; chat still WebSocket / admin via curl |
+| Full admin UI + chat UI | Yes — `apps/portal` (`npm run dev` → `/admin`, `/sandboxes/[id]`) | Insights after Cognito PKCE; **Access** at `#/admin` for allowlisted admins; chat still WebSocket |
 | Auth | Cookie `halcyon_session` + DynamoDB password (local) | Cognito Hosted UI + JWT |
 | Chat | `POST /api/sandboxes/:id/chat` SSE → loopback Gateway | WebSocket via AWS; REST chat returns **426** |
 | Reach Gateway | Portal holds `OPENCLAW_GATEWAY_TOKEN`, calls `:18789` | **Sidecar only** holds Gateway token; Lambda never does |
@@ -36,7 +36,7 @@ Local UI: `/insights`. Hosted SPA (`site/index.html`) is PKCE login + Insights d
 | Publish SPA | `.github/workflows/publish.yml` packages `site/index.html` | Pins `openclaw_spa_version`, serves CloudFront |
 | Publish Lambda | — | `publish-openclaw.yml` → `openclaw_lambda_version` |
 
-**UX today:** Staging `https://staging.halcyonlabs.uk` = Cognito PKCE + Business Insights. Grant sandboxes with admin Cognito JWT + `/api/admin/*` (see admin runbook), or use local `/admin`. Ordinary signup → labelled Sample workspace in the hosted SPA (in-page fixtures, not Dynamo). Dynamo demo seed still requires membership.
+**UX today:** Staging `https://staging-portal.halcyonlabs.uk` = Cognito PKCE + Business Insights + `#/admin` Access for `openclaw_admin_emails`. Ordinary signup → labelled Sample workspace until an admin grants membership.
 
 ```mermaid
 flowchart LR
@@ -64,9 +64,9 @@ Two isolated environments (separate Terraform state, VPC, IAM, Lambda, Cognito, 
 
 | | Production | Staging |
 |---|---|---|
-| App | `https://app.halcyonlabs.uk` | `https://staging.halcyonlabs.uk` |
-| Login | `https://login.halcyonlabs.uk` | `https://login.staging.halcyonlabs.uk` |
-| WebSocket | `wss://ws.app.halcyonlabs.uk` | `wss://ws.staging.halcyonlabs.uk` |
+| Portal | `https://portal.halcyonlabs.uk` | `https://staging-portal.halcyonlabs.uk` |
+| Login | `https://login.portal.halcyonlabs.uk` | `https://login.staging-portal.halcyonlabs.uk` |
+| WebSocket | `wss://ws.portal.halcyonlabs.uk` | `wss://ws.staging-portal.halcyonlabs.uk` |
 | Dynamo prefix | `halcyon_` | `halcyon_staging_` |
 | Apply | `cd sam-terraform/envs/production` | `cd sam-terraform/envs/staging` |
 | GitHub | Environment `production` (`master`/`main`) | Environment `staging` (openclaw branch `staging`; terraform stays on `main` + `envs/staging`) |

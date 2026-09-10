@@ -35,6 +35,7 @@
     .accent { background: var(--accent); color: #06251c; font-weight: 600; }
     .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
     .wrap { max-width: 56rem; margin: 0 auto; padding: 1.75rem 1.25rem 3rem; }
+    .wrap.wide { max-width: 74rem; }
     .kicker {
       letter-spacing: 0.25em;
       text-transform: uppercase;
@@ -130,6 +131,56 @@
     ul.evidence { margin: 0.5rem 0 0; padding-left: 1.1rem; }
     .actions { display: flex; gap: 0.5rem; margin-top: 1.25rem; }
     .err { color: var(--danger); }
+    .nav { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    .pill {
+      font-size: 0.78rem;
+      border-radius: 99px;
+      padding: 0.25rem 0.7rem;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .pill.on { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--accent); }
+    .pill.off { border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); color: var(--danger); }
+    .admin-grid {
+      display: grid;
+      grid-template-columns: minmax(14rem, 0.9fr) minmax(18rem, 1.4fr) minmax(14rem, 0.9fr);
+      gap: 0.85rem;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .admin-grid { grid-template-columns: 1fr; }
+    }
+    .user-list { display: grid; gap: 0.4rem; max-height: 28rem; overflow: auto; }
+    .user-row {
+      text-align: left;
+      width: 100%;
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--line);
+      padding: 0.65rem 0.75rem;
+    }
+    .user-row.sel { border-color: var(--accent); }
+    .user-row small { display: block; color: var(--muted); font-size: 0.78rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0; }
+    .chip {
+      font-size: 0.72rem;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 99px;
+      padding: 0.15rem 0.55rem;
+      color: var(--muted);
+    }
+    .stack { display: grid; gap: 0.75rem; }
+    .field { display: grid; gap: 0.3rem; margin-bottom: 0.65rem; }
+    .field label { font-size: 0.75rem; color: var(--muted); }
+    .field input, .field select {
+      font: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.5rem 0.65rem;
+    }
   </style>
 </head>
 <body>
@@ -237,9 +288,20 @@
 
     function route() {
       const hash = location.hash.replace(/^#/, "") || "/";
+      if (hash === "/admin" || hash.startsWith("/admin/")) return { name: "admin" };
       const detail = hash.match(/^\/insight\/([^/]+)$/);
       if (detail) return { name: "detail", id: decodeURIComponent(detail[1]) };
       return { name: "home" };
+    }
+
+    function esc(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[ch]));
     }
 
     function b64url(bytes) {
@@ -395,17 +457,26 @@
       });
     }
 
-    function shell(inner) {
+    function shell(inner, options) {
+      const title = (options && options.title) || "Business Insights";
+      const sub = (options && options.sub) || ((me && me.email ? me.email : "") + " — intelligence, not raw telemetry");
+      const adminNav = me && me.role === "admin"
+        ? '<a class="ghost" href="#/admin">Access</a>'
+        : "";
       app.className = "";
       app.innerHTML =
-        '<div class="wrap">' +
+        '<div class="wrap' + ((options && options.wide) ? " wide" : "") + '">' +
           '<header class="bar">' +
             "<div>" +
               '<p class="kicker">Halcyon</p>' +
-              "<h1>Business Insights</h1>" +
-              '<p class="muted">' + (me && me.email ? me.email : "") + " — intelligence, not raw telemetry</p>" +
+              "<h1>" + title + "</h1>" +
+              '<p class="muted">' + sub + "</p>" +
             "</div>" +
-            '<button class="ghost" id="out">Sign out</button>' +
+            '<div class="nav">' +
+              '<a class="ghost" href="#/">Insights</a>' +
+              adminNav +
+              '<button class="ghost" id="out">Sign out</button>' +
+            "</div>" +
           "</header>" +
           inner +
         "</div>";
@@ -510,11 +581,235 @@
       renderHome(SAMPLE.insights, [SAMPLE.metrics], { sample: true, note: note || "" });
     }
 
+    async function renderAdmin(state) {
+      state = state || { query: "", selectedId: "", name: "", modelRef: "ollama/qwen3.6:latest", inviteEmail: "", inviteName: "" };
+      if (state.force || !state.payload) {
+        shell('<p class="muted">Loading directory…</p>', { title: "Access", sub: "Grant isolated environments to signed-in clients", wide: true });
+        try {
+          const [clientsRes, sandboxesRes, health] = await Promise.all([
+            api("/api/admin/clients"),
+            api("/api/admin/sandboxes"),
+            api("/api/health").catch(() => ({ sidecar: false })),
+          ]);
+          const sandboxes = sandboxesRes.sandboxes || [];
+          const membersBySandbox = {};
+          await Promise.all(sandboxes.map(async (box) => {
+            const data = await api("/api/admin/sandboxes/" + encodeURIComponent(box.sandboxId) + "/members");
+            membersBySandbox[box.sandboxId] = data.members || [];
+          }));
+          state.payload = {
+            clients: clientsRes.clients || [],
+            sandboxes: sandboxes,
+            membersBySandbox: membersBySandbox,
+            health: health,
+          };
+          state.force = false;
+          state.error = state.error || "";
+        } catch (err) {
+          shell('<p class="err">' + esc(err.message) + "</p>", { title: "Access", wide: true });
+          return;
+        }
+      }
+      const clients = state.payload.clients;
+      const sandboxes = state.payload.sandboxes;
+      const membersBySandbox = state.payload.membersBySandbox;
+      const health = state.payload.health;
+        const byId = Object.fromEntries(clients.map((row) => [row.userId, row]));
+        const q = (state.query || "").trim().toLowerCase();
+        const shown = clients.filter((row) => {
+          const hay = ((row.email || "") + " " + (row.name || "")).toLowerCase();
+          return !q || hay.includes(q);
+        });
+        if (!state.selectedId && shown[0]) state.selectedId = shown[0].userId;
+        const selected = clients.find((row) => row.userId === state.selectedId) || null;
+        const sidecarOn = !!health.sidecar;
+        const strip =
+          '<p class="banner" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">' +
+            '<span class="pill ' + (sidecarOn ? "on" : "off") + '">' +
+              (sidecarOn ? "Capacity connected" : "Capacity offline — new connections will not provision until the studio is up") +
+            "</span>" +
+            '<span class="pill">Default model ollama/qwen3.6:latest</span>' +
+          "</p>";
+        const usersCol =
+          '<section class="card">' +
+            "<h2>People</h2>" +
+            '<p class="muted">Everyone who has signed in. Select a client, then grant a connection.</p>' +
+            '<div class="field"><label>Search</label>' +
+              '<input id="user-q" value="' + esc(state.query) + '" placeholder="Name or email" /></div>' +
+            '<div class="user-list">' +
+              shown.map((row) =>
+                '<button type="button" class="user-row' + (row.userId === state.selectedId ? " sel" : "") + '" data-user="' + esc(row.userId) + '">' +
+                  esc(row.name || row.email) +
+                  "<small>" + esc(row.email) + " · " + esc(row.role) + "</small>" +
+                "</button>"
+              ).join("") +
+            "</div>" +
+          "</section>";
+        const boxesCol =
+          '<section class="stack">' +
+            sandboxes.map((box) => {
+              const members = membersBySandbox[box.sandboxId] || [];
+              const member = selected && members.some((m) => m.userId === selected.userId);
+              const chips = members.map((m) => {
+                const person = byId[m.userId];
+                return '<span class="chip">' + esc((person && person.email) || m.userId) + "</span>";
+              }).join("");
+              const actions = selected
+                ? (member
+                    ? '<button class="ghost" data-revoke="' + esc(box.sandboxId) + '">Revoke</button>'
+                    : '<button class="accent" data-grant="' + esc(box.sandboxId) + '">Grant</button>')
+                : '<p class="muted">Select a person.</p>';
+              return (
+                '<article class="card">' +
+                  "<h2>" + esc(box.name) + "</h2>" +
+                  '<p class="muted">' + esc(box.modelRef) + "</p>" +
+                  '<div class="chips">' + (chips || '<span class="chip">No members</span>') + "</div>" +
+                  '<div class="actions">' + actions + "</div>" +
+                "</article>"
+              );
+            }).join("") +
+            (sandboxes.length ? "" : '<article class="card"><p class="muted">No connections yet. Create one on the right.</p></article>') +
+          "</section>";
+        const formCol =
+          '<aside class="stack">' +
+            '<section class="card">' +
+              "<h2>New connection</h2>" +
+              '<p class="muted">Creates an isolated environment on the connected capacity.</p>' +
+              '<form id="new-box">' +
+                '<div class="field"><label>Name</label><input name="name" required value="' + esc(state.name) + '" /></div>' +
+                '<div class="field"><label>Model</label><input name="modelRef" required value="' + esc(state.modelRef) + '" /></div>' +
+                '<button class="accent" type="submit"' + (sidecarOn ? "" : " disabled") + ">Create</button>" +
+              "</form>" +
+            "</section>" +
+            '<section class="card">' +
+              "<h2>Invite client</h2>" +
+              '<p class="muted">Optional. Prefer they sign up, then grant. Invite emails a Cognito temp password and creates a private connection.</p>' +
+              '<form id="invite">' +
+                '<div class="field"><label>Name</label><input name="name" required value="' + esc(state.inviteName) + '" /></div>' +
+                '<div class="field"><label>Email</label><input name="email" type="email" required value="' + esc(state.inviteEmail) + '" /></div>' +
+                '<button class="ghost" type="submit"' + (sidecarOn ? "" : " disabled") + ">Invite and connect</button>" +
+              "</form>" +
+            "</section>" +
+          "</aside>";
+        const err = state.error ? '<p class="err">' + esc(state.error) + "</p>" : "";
+        shell(
+          strip + err + '<div class="admin-grid">' + usersCol + boxesCol + formCol + "</div>",
+          { title: "Access", sub: "Grant isolated environments to signed-in clients", wide: true }
+        );
+        const qInput = document.getElementById("user-q");
+        qInput.oninput = () => {
+          const pos = qInput.selectionStart;
+          state.query = qInput.value;
+          renderAdmin(state).then(() => {
+            const next = document.getElementById("user-q");
+            if (next) {
+              next.focus();
+              next.setSelectionRange(pos, pos);
+            }
+          });
+        };
+        app.querySelectorAll("[data-user]").forEach((btn) => {
+          btn.onclick = () => {
+            state.selectedId = btn.getAttribute("data-user");
+            renderAdmin(state);
+          };
+        });
+        app.querySelectorAll("[data-grant]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              await api("/api/admin/sandboxes/" + encodeURIComponent(btn.getAttribute("data-grant")) + "/members", {
+                method: "POST",
+                body: JSON.stringify({ userId: state.selectedId }),
+              });
+              state.error = "";
+              state.payload = null;
+              state.force = true;
+              await renderAdmin(state);
+            } catch (err) {
+              state.error = err.message;
+              await renderAdmin(state);
+            }
+          };
+        });
+        app.querySelectorAll("[data-revoke]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              await api("/api/admin/sandboxes/" + encodeURIComponent(btn.getAttribute("data-revoke")) + "/members", {
+                method: "DELETE",
+                body: JSON.stringify({ userId: state.selectedId }),
+              });
+              state.error = "";
+              state.payload = null;
+              state.force = true;
+              await renderAdmin(state);
+            } catch (err) {
+              state.error = err.message;
+              await renderAdmin(state);
+            }
+          };
+        });
+        document.getElementById("new-box").onsubmit = async (event) => {
+          event.preventDefault();
+          const form = event.target;
+          try {
+            const created = await api("/api/admin/sandboxes", {
+              method: "POST",
+              body: JSON.stringify({ name: form.name.value, modelRef: form.modelRef.value }),
+            });
+            if (state.selectedId && created.sandbox && created.sandbox.sandboxId) {
+              await api("/api/admin/sandboxes/" + encodeURIComponent(created.sandbox.sandboxId) + "/members", {
+                method: "POST",
+                body: JSON.stringify({ userId: state.selectedId }),
+              });
+            }
+            state.name = "";
+            state.error = "";
+            state.payload = null;
+            state.force = true;
+            await renderAdmin(state);
+          } catch (err) {
+            state.error = err.message;
+            await renderAdmin(state);
+          }
+        };
+        document.getElementById("invite").onsubmit = async (event) => {
+          event.preventDefault();
+          const form = event.target;
+          try {
+            await api("/api/admin/clients", {
+              method: "POST",
+              body: JSON.stringify({
+                email: form.email.value,
+                name: form.name.value,
+                modelRef: state.modelRef,
+              }),
+            });
+            state.inviteEmail = "";
+            state.inviteName = "";
+            state.error = "";
+            state.payload = null;
+            state.force = true;
+            await renderAdmin(state);
+          } catch (err) {
+            state.error = err.message;
+            await renderAdmin(state);
+          }
+        };
+    }
+
     async function loadApp() {
       const view = route();
       try {
         const sandboxes = await api("/api/sandboxes");
         me = sandboxes.me;
+        if (view.name === "admin") {
+          if (!me || me.role !== "admin") {
+            shell('<p class="err">Access is for administrators only.</p>');
+            return;
+          }
+          await renderAdmin();
+          return;
+        }
         const hasMembership = !!(sandboxes.sandboxes && sandboxes.sandboxes.length);
         if (!hasMembership) {
           showSample(view);
