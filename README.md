@@ -10,10 +10,10 @@ Isolation: one OpenClaw agent per sandbox. Client A cannot read Client B unless 
 
 | | **Local (this repo)** | **Hosted (`sam-terraform`)** |
 |---|---|---|
-| UI | Next.js `apps/portal` — `/admin`, sandbox list, streaming chat | `site/index.html` landing + Cognito only (no admin UI yet) |
+| UI | Next.js `apps/portal` — `/admin`, sandbox list, streaming chat | `site/index.html` Insights + `#/admin` Access for allowlisted Cognito admins (not the Next.js BFF) |
 | Auth | Cookie + `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Cognito; bootstrap admin = `openclaw_admin_email` |
 | Gateway | Portal → `http://127.0.0.1:18789` | Mac **sidecar** → Gateway; AWS never holds the token |
-| Grant sandboxes | Click `/admin` | Curl `/api/admin/*` with admin ID token — see [`sam-terraform/docs/openclaw-admin.md`](../sam-terraform/docs/openclaw-admin.md) |
+| Grant sandboxes | Click `/admin` | Hosted `#/admin` (Access) with admin ID token, or curl `/api/admin/*` |
 
 Signup on staging never assigns a sandbox until an admin grants membership. Dual-repo contract: [`INTEGRATION.md`](INTEGRATION.md).
 
@@ -70,10 +70,11 @@ Dependabot weekly updates npm and GitHub Actions. Terraform/IaC scanning and Lam
 | Local portal (Next.js BFF + cookie auth) | this repo |
 | Users, ACL, threads | DynamoDB (Local now; on-demand tables in AWS) |
 | Hosted public edge | `sam-terraform`: CloudFront SPA + Cognito JWT + Lambda HTTP API (per env) |
-| Hosted login | prod `https://login.halcyonlabs.uk`; staging `https://login.staging.halcyonlabs.uk` |
-| Hosted chat | prod `wss://ws.app.halcyonlabs.uk`; staging `wss://ws.staging.halcyonlabs.uk` |
+| Hosted login | prod `https://login.portal.halcyonlabs.uk`; staging `https://login.staging-portal.halcyonlabs.uk` |
+| Hosted chat | prod `wss://ws.portal.halcyonlabs.uk`; staging `wss://ws.staging-portal.halcyonlabs.uk` |
 | Agent memory / transcripts | OpenClaw SQLite on the Mac |
 | Models | Ollama on the Mac (`:18789` / `:11434` stay loopback) |
+| Inference host first-boot | sibling repo `bootstrap-ollama` (Studio always-on staging sidecar; WSL = one sidecar at a time) |
 
 Hosted contract: [`sam-terraform/docs/openclaw-integration.md`](../sam-terraform/docs/openclaw-integration.md).  
 Admin (tokens, curl, sidecar): [`sam-terraform/docs/openclaw-admin.md`](../sam-terraform/docs/openclaw-admin.md).  
