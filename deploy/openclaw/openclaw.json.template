@@ -1,6 +1,7 @@
 {
   "agents": {
     "defaults": {
+      "thinkingDefault": "off",
       "sandbox": {
         "mode": "all",
         "scope": "agent"

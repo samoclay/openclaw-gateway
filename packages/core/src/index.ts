@@ -14,6 +14,20 @@ export {
 } from "./chat-request";
 export { assertSessionKeyForSandbox, mintSessionKey } from "./session-key";
 export { slugAgentId } from "./agent-id";
+export {
+  DEFAULT_ROLE_ID,
+  allowlistedAgentIds,
+  resolveMentionAgent,
+  slugRoleAgentId,
+  type CrewRole,
+  type CrewSandbox,
+} from "./authorize-role";
+export {
+  WORKSPACE_ERRORS,
+  workspaceError,
+  type WorkspaceError,
+  type WorkspaceStage,
+} from "./workspace-errors";
 export { authorizeAdmin } from "./authorize-admin";
 export {
   authorizeChatTurn,

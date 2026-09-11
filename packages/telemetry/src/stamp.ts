@@ -14,7 +14,12 @@ export const EVENT_TYPES = [
 
 export type EventType = (typeof EVENT_TYPES)[number];
 
-export const CLIENT_FORWARDABLE_SIDECAR_TYPES = ["delta", "done", "error"] as const;
+export const CLIENT_FORWARDABLE_SIDECAR_TYPES = [
+  "delta",
+  "done",
+  "error",
+  "sealed",
+] as const;
 
 const STRIP_IDENTITY_KEYS = new Set([
   "tenant_id",
