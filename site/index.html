@@ -738,6 +738,13 @@
       return health.sidecar ? 1 : 0;
     }
 
+    function capacityBody(value) {
+      if (!value || value === "pool") {
+        return { capacityMode: "pool", pinnedHostId: "", capacity: "pool" };
+      }
+      return { capacityMode: "pin", pinnedHostId: value, capacity: value };
+    }
+
     function capacityPill(health) {
       const n = capacityCount(health);
       if (n > 0) {
@@ -1020,6 +1027,7 @@
         });
         document.getElementById("new-thread").onclick = () => {
           state.threadId = "";
+          state.hop = null;
           state.bubbles = [];
           sessionStorage.removeItem("halcyon_thread_" + current.sandboxId);
           paint();
@@ -1045,15 +1053,56 @@
         };
       }
 
-      async function ensureHop() {
+      function waitForAssign(ws) {
+        return new Promise((resolve, reject) => {
+          function cleanup() {
+            ws.removeEventListener("message", onMessage);
+            ws.removeEventListener("close", onClose);
+          }
+          function onMessage(event) {
+            let msg;
+            try { msg = JSON.parse(event.data); } catch { return; }
+            if (msg.type === "assign" && msg.threadId && msg.pubKey) {
+              cleanup();
+              resolve(msg);
+              return;
+            }
+            if (msg.type === "error") {
+              cleanup();
+              reject(Object.assign(new Error(msg.error || "assign"), {
+                title: msg.title,
+                stage: msg.stage,
+                detail: msg.detail,
+              }));
+            }
+          }
+          function onClose() {
+            cleanup();
+            reject(Object.assign(new Error("ws"), {
+              title: "Capacity is offline",
+              stage: "sidecar",
+              detail: "The portal reached our servers, but the inference host is not connected. Chat stays disabled until capacity shows connected.",
+            }));
+          }
+          ws.addEventListener("message", onMessage);
+          ws.addEventListener("close", onClose);
+        });
+      }
+
+      async function ensureHop(assigned) {
+        if (state.threadId !== assigned.threadId || (state.hop && state.hop.hostId !== assigned.hostId)) {
+          state.hop = null;
+        }
+        state.threadId = assigned.threadId;
+        sessionStorage.setItem("halcyon_thread_" + current.sandboxId, assigned.threadId);
         if (state.hop) return state.hop;
-        if (!health.pubKey) throw Object.assign(new Error("crypto"), {
+        if (!assigned.pubKey) throw Object.assign(new Error("crypto"), {
           title: "Could not start a private session",
           stage: "browser",
           detail: "This browser could not agree encryption keys with the inference host. Refresh and try again.",
         });
         const pair = await hopGenerate();
-        state.hop = { pair: pair, peer: fromB64url(health.pubKey) };
+        state.hop = { pair: pair, peer: fromB64url(assigned.pubKey), hostId: assigned.hostId };
         return state.hop;
       }
 
@@ -1083,7 +1132,6 @@
         state.bubbles.push({ role: "you", label: "You", text: text });
         await paint();
         try {
-          const hop = await ensureHop();
           const t = tokens() || {};
           const ws = new WebSocket("wss://" + cfg.wsHost + "?token=" + encodeURIComponent(t.access_token || t.id_token || ""));
           await new Promise((resolve, reject) => {
@@ -1096,11 +1144,12 @@
               }));
             };
           });
+          const assignBody = { type: "assign", sandboxId: current.sandboxId };
+          if (state.threadId) assignBody.threadId = state.threadId;
+          ws.send(JSON.stringify(assignBody));
+          const assigned = await waitForAssign(ws);
+          const hop = await ensureHop(assigned);
           const mentionRoleId = mentionFromText(text) || (state.selected !== "default" ? state.selected : "");
-          if (!state.threadId) {
-            state.threadId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
-            sessionStorage.setItem("halcyon_thread_" + current.sandboxId, state.threadId);
-          }
           const sealed = await hopSeal(hop.pair.privateKey, hop.peer, current.sandboxId, state.threadId, { message: text });
           const body = {
             sandboxId: current.sandboxId,
@@ -1114,12 +1163,9 @@
             let msg;
             try { msg = JSON.parse(event.data); } catch { return; }
             if (msg.type === "ack" && msg.threadId) {
-              const old = state.threadId;
+              if (state.threadId && state.threadId !== msg.threadId) state.hop = null;
               state.threadId = msg.threadId;
               sessionStorage.setItem("halcyon_thread_" + current.sandboxId, msg.threadId);
-              if (!old) {
-                /* first box used AAD pending — Lambda still accepted sealed with pending thread; BAD */
-              }
             }
             if (msg.type === "error") {
               state.pending = false;
@@ -1199,10 +1245,11 @@
       if (state.force || !state.payload) {
         shell('<p class="muted">Loading directory…</p>', { title: "Access", sub: "Grant isolated environments to signed-in clients", wide: true });
         try {
-          const [clientsRes, sandboxesRes, health] = await Promise.all([
+          const [clientsRes, sandboxesRes, health, hostsRes] = await Promise.all([
             api("/api/admin/clients"),
             api("/api/admin/sandboxes"),
             api("/api/health").catch(() => ({ sidecar: false })),
+            api("/api/admin/hosts").catch(() => null),
           ]);
           const sandboxes = sandboxesRes.sandboxes || [];
           const membersBySandbox = {};
@@ -1215,6 +1262,9 @@
             sandboxes: sandboxes,
             membersBySandbox: membersBySandbox,
             health: health,
+            hosts: (hostsRes && Array.isArray(hostsRes.hosts))
+              ? hostsRes.hosts
+              : (Array.isArray(health.hosts) ? health.hosts : []),
           };
           state.force = false;
           state.error = state.error || "";
@@ -1236,7 +1286,7 @@
         if (!state.selectedId && shown[0]) state.selectedId = shown[0].userId;
         const selected = clients.find((row) => row.userId === state.selectedId) || null;
         const sidecarOn = !!health.sidecar;
-        const hosts = Array.isArray(health.hosts) ? health.hosts : [];
+        const hosts = Array.isArray(state.payload.hosts) ? state.payload.hosts : [];
         const hostRows = hosts.length
           ? hosts.map(function (h) {
               return "<tr><td>" + esc(h.hostname || "—") + "</td><td>" + esc(h.hostId || "") +
@@ -1304,7 +1354,7 @@
                 '<article class="card">' +
                   "<h2>" + esc(box.name) + "</h2>" +
                   '<p class="muted">' + esc(box.modelRef) + "</p>" +
-                  '<div class="field"><label>Capacity</label><select disabled title="Pin and pool go live with the multi-host registry">' +
+                  '<div class="field"><label>Capacity</label><select data-capacity="' + esc(box.sandboxId) + '">' +
                     pinOptions(pin === "pin" ? (box.pinnedHostId || "pool") : pin) +
                   "</select></div>" +
                   '<div class="chips">' + (chips || '<span class="chip">No members</span>') + "</div>" +
@@ -1364,6 +1414,24 @@
             }
           };
         });
+        app.querySelectorAll("[data-capacity]").forEach((sel) => {
+          sel.onchange = async () => {
+            const fields = capacityBody(sel.value);
+            try {
+              await api("/api/admin/sandboxes/" + encodeURIComponent(sel.getAttribute("data-capacity")), {
+                method: "PATCH",
+                body: JSON.stringify(fields),
+              });
+              state.error = "";
+              state.payload = null;
+              state.force = true;
+              await renderAdmin(state);
+            } catch (err) {
+              state.error = err.message;
+              await renderAdmin(state);
+            }
+          };
+        });
         app.querySelectorAll("[data-revoke]").forEach((btn) => {
           btn.onclick = async () => {
             try {
@@ -1387,7 +1455,10 @@
           try {
             const created = await api("/api/admin/sandboxes", {
               method: "POST",
-              body: JSON.stringify({ name: form.name.value, modelRef: form.modelRef.value }),
+              body: JSON.stringify(Object.assign({
+                name: form.name.value,
+                modelRef: form.modelRef.value,
+              }, capacityBody(form.capacity.value))),
             });
             if (state.selectedId && created.sandbox && created.sandbox.sandboxId) {
               await api("/api/admin/sandboxes/" + encodeURIComponent(created.sandbox.sandboxId) + "/members", {
