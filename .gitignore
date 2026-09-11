@@ -11,3 +11,4 @@ drizzle/*.sql
 .turbo
 apps/portal/.next
 apps/portal/next-env.d.ts
+.superdesign/tmp

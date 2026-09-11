@@ -38,11 +38,26 @@
       cursor: pointer;
       border: 0;
       border-radius: 999px;
-      padding: 0.55rem 1rem;
+      min-height: 44px;
+      padding: 0.55rem 1.15rem;
     }
+    button:disabled, .accent:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
     .accent { background: var(--accent); color: #1a1206; font-weight: 600; }
-    .accent:hover { box-shadow: var(--glow-gold); }
+    .accent:hover:not(:disabled) { box-shadow: var(--glow-gold); }
     .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line-strong); }
+    .ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }
+    .ghost.active { border-color: var(--accent); color: var(--accent); }
+    a.ghost {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 0.55rem 1.15rem;
+      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      color: var(--muted);
+    }
+    a.ghost:hover { border-color: var(--accent); color: var(--text); }
+    a.ghost.active { border-color: var(--accent); color: var(--accent); }
     .wrap { max-width: 56rem; margin: 0 auto; padding: 1.75rem 1.25rem 3rem; }
     .wrap.wide { max-width: 74rem; }
     .kicker {
@@ -58,19 +73,27 @@
     h3 { margin: 0.9rem 0 0.35rem; font-size: 1rem; }
     .muted { color: var(--muted); }
     header.bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
       gap: 1rem;
-      margin-bottom: 1.25rem;
+      margin: 0 -1.25rem 1.5rem;
+      padding: 0.9rem 1.25rem 1rem;
+      background: rgba(0, 0, 0, 0.9);
+      border-bottom: 1px solid rgba(246, 196, 83, 0.08);
+      backdrop-filter: blur(12px);
     }
     .banner {
-      background: color-mix(in srgb, var(--accent) 10%, var(--raised));
-      border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+      background: transparent;
+      border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 0.75rem 1rem;
+      padding: 0.65rem 0.9rem;
       margin-bottom: 1.25rem;
-      font-size: 0.88rem;
+      font-size: 0.85rem;
+      opacity: 0.9;
     }
     .kpis {
       display: grid;
@@ -153,23 +176,41 @@
     .pill.off { border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); color: var(--danger); }
     .admin-grid {
       display: grid;
-      grid-template-columns: minmax(14rem, 0.9fr) minmax(18rem, 1.4fr) minmax(14rem, 0.9fr);
-      gap: 0.85rem;
+      grid-template-columns: minmax(16rem, 20rem) 1fr;
+      gap: 1.5rem;
       align-items: start;
     }
     @media (max-width: 960px) {
       .admin-grid { grid-template-columns: 1fr; }
     }
+    .host-table { width: 100%; border-collapse: collapse; }
+    .host-table th {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      text-align: left;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .host-table td {
+      padding: 0.75rem 1rem;
+      font-size: 0.85rem;
+      border-bottom: 1px solid var(--line);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
     .user-list { display: grid; gap: 0.4rem; max-height: 28rem; overflow: auto; }
     .user-row {
       text-align: left;
       width: 100%;
-      background: var(--bg);
+      background: transparent;
       color: var(--text);
       border: 1px solid var(--line);
-      padding: 0.65rem 0.75rem;
+      border-radius: 12px;
+      padding: 0.85rem 0.9rem;
     }
-    .user-row.sel { border-color: var(--accent); }
+    .user-row:hover { border-color: var(--line-strong); background: var(--raised); }
+    .user-row.sel { border-color: var(--accent); background: var(--surface-2); }
     .user-row small { display: block; color: var(--muted); font-size: 0.78rem; }
     .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0; }
     .chip {
@@ -240,9 +281,9 @@
     }
     .desk {
       display: grid;
-      grid-template-columns: minmax(13rem, 16rem) 1fr;
-      gap: 0.85rem;
-      min-height: 70vh;
+      grid-template-columns: minmax(14rem, 18rem) 1fr;
+      gap: 1.5rem;
+      min-height: 75vh;
     }
     @media (max-width: 840px) {
       .desk { grid-template-columns: 1fr; }
@@ -260,15 +301,20 @@
       border-radius: 14px;
       padding: 0.7rem 0.8rem;
     }
-    .agent-box.sel { border-color: var(--accent); }
+    .agent-box.sel {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 4%, var(--raised));
+      box-shadow: inset 0 0 12px rgba(246, 196, 83, 0.05);
+    }
     .agent-box small { display: block; color: var(--muted); font-size: 0.75rem; }
     .room {
       display: flex;
       flex-direction: column;
       min-height: 70vh;
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: 16px;
       background: var(--raised);
+      overflow: hidden;
     }
     .bubbles {
       flex: 1;
@@ -296,11 +342,25 @@
     }
     .composer {
       display: flex;
-      gap: 0.5rem;
-      padding: 0.75rem;
+      align-items: flex-end;
+      gap: 0.65rem;
+      padding: 1.1rem 1.15rem;
       border-top: 1px solid var(--line);
     }
-    .composer input { flex: 1; }
+    .composer input, .composer textarea {
+      flex: 1;
+      min-height: 52px;
+      font: inherit;
+      color: var(--text);
+      background: #000;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.75rem 1rem;
+      outline: none;
+      resize: none;
+    }
+    .composer textarea:focus { border-color: var(--accent); }
+    .composer .accent, .composer .ghost { min-height: 52px; padding: 0 1.6rem; font-size: 1rem; }
     .err-card { border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
   </style>
 </head>
@@ -670,11 +730,34 @@
       });
     }
 
+    function capacityCount(health) {
+      if (!health) return 0;
+      if (typeof health.capacity === "number") return health.capacity;
+      const hosts = health.hosts;
+      if (Array.isArray(hosts)) return hosts.length;
+      return health.sidecar ? 1 : 0;
+    }
+
+    function capacityPill(health) {
+      const n = capacityCount(health);
+      if (n > 0) {
+        return '<span class="pill on">' + n + (n === 1 ? " host live" : " hosts live") + "</span>";
+      }
+      return '<span class="pill off">Capacity offline</span>';
+    }
+
+    function navClass(key, active) {
+      return 'class="ghost' + (key === active ? " active" : "") + '"';
+    }
+
     function shell(inner, options) {
       const title = (options && options.title) || "Workspace";
       const sub = (options && options.sub) || ((me && me.email ? me.email : "") + " — isolated private AI");
+      const hash = (location.hash || "#/workspace").split("?")[0];
+      const active = hash.indexOf("/admin") === 1 ? "admin"
+        : (hash.indexOf("/insight") === 1 ? "insights" : "workspace");
       const adminNav = me && me.role === "admin"
-        ? '<a class="ghost" href="#/admin">Access</a>'
+        ? '<a ' + navClass("admin", active) + ' href="#/admin">Access</a>'
         : "";
       app.className = "";
       app.innerHTML =
@@ -686,8 +769,9 @@
               '<p class="muted">' + sub + "</p>" +
             "</div>" +
             '<div class="nav">' +
-              '<a class="ghost" href="#/workspace">Workspace</a>' +
-              '<a class="ghost" href="#/insights">Insights</a>' +
+              (options && options.health ? capacityPill(options.health) : "") +
+              '<a ' + navClass("workspace", active) + ' href="#/workspace">Workspace</a>' +
+              '<a ' + navClass("insights", active) + ' href="#/insights">Insights</a>' +
               adminNav +
               '<button class="ghost" id="out">Sign out</button>' +
             "</div>" +
@@ -737,7 +821,9 @@
         : "";
       shell(banner + warn + kpis + charts + '<div class="insights">' + cards + empty + "</div>", {
         title: "Insights",
+        health: options && options.health,
         sub: (me && me.email ? me.email : "") + " — usage, not prompts",
+        wide: true,
       });
     }
 
@@ -765,7 +851,7 @@
           "<h3>Recommended action</h3><p>" + insight.recommendedAction + "</p>" +
           actions +
         "</article>",
-        { title: "Insights" }
+        { title: "Insights", wide: true }
       );
       app.querySelectorAll("[data-status]").forEach((btn) => {
         btn.onclick = async () => {
@@ -904,9 +990,9 @@
             (row.role === "you" ? "" : sunHtml(!!running)) +
             esc(row.label || row.role) + "</header><div>" + esc(row.text) + "</div></article>";
         }).join("");
-        const banner = '<p class="banner" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">' +
-          '<span class="pill ' + (sidecarOn ? "on" : "off") + '">' + (sidecarOn ? "Capacity connected" : "Capacity offline") + "</span>" +
-          (state.note ? '<span class="muted">' + esc(state.note) + "</span>" : "") +
+        const banner = '<p class="banner">' +
+          capacityPill(health) +
+          (state.note ? ' <span class="muted">' + esc(state.note) + "</span>" : "") +
         "</p>";
         shell(
           banner + switcher +
@@ -917,12 +1003,12 @@
             "</aside>" +
             '<section class="room"><div class="bubbles" id="bubbles">' + bubbles + "</div>" +
               '<form class="composer" id="chat">' +
-                '<input id="msg" placeholder="Message this crew… @Name to hand off" ' + (sidecarOn && !state.pending ? "" : "disabled") + '>' +
+                '<textarea id="msg" rows="1" placeholder="Message this crew… @Name to hand off" ' + (sidecarOn && !state.pending ? "" : "disabled") + "></textarea>" +
                 '<button class="accent" type="submit"' + (sidecarOn && !state.pending ? "" : " disabled") + ">Send</button>" +
                 '<button class="ghost" type="button" id="new-thread">New thread</button>' +
               "</form></section>" +
           "</div>",
-          { title: current.name || "Workspace", sub: (me && me.email ? me.email : "") + " — crew room", wide: true },
+          { title: current.name || "Workspace", sub: (me && me.email ? me.email : "") + " — crew room", wide: true, health: health },
         );
         const sbx = document.getElementById("sbx");
         if (sbx) sbx.onchange = () => {
@@ -1150,13 +1236,22 @@
         if (!state.selectedId && shown[0]) state.selectedId = shown[0].userId;
         const selected = clients.find((row) => row.userId === state.selectedId) || null;
         const sidecarOn = !!health.sidecar;
-        const strip =
-          '<p class="banner" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">' +
-            '<span class="pill ' + (sidecarOn ? "on" : "off") + '">' +
-              (sidecarOn ? "Capacity connected" : "Capacity offline — new connections will not provision until the studio is up") +
-            "</span>" +
-            '<span class="pill">Default model ollama/qwen3.6:latest</span>' +
-          "</p>";
+        const hosts = Array.isArray(health.hosts) ? health.hosts : [];
+        const hostRows = hosts.length
+          ? hosts.map(function (h) {
+              return "<tr><td>" + esc(h.hostname || "—") + "</td><td>" + esc(h.hostId || "") +
+                "</td><td><span class=\"pill on\">Online</span></td></tr>";
+            }).join("")
+          : '<tr><td colspan="3" class="muted">No live hosts yet. Connect Halcyon Host; they appear as hostname + Halcyon ID.</td></tr>';
+        function pinOptions(selected) {
+          const cur = selected || "pool";
+          return '<option value="pool"' + (cur === "pool" ? " selected" : "") + ">Pool — any connected host</option>" +
+            hosts.map(function (h) {
+              const id = h.hostId || "";
+              return '<option value="' + esc(id) + '"' + (cur === id ? " selected" : "") + ">Pin — " +
+                esc(h.hostname || id) + " (" + esc(id) + ")</option>";
+            }).join("");
+        }
         const usersCol =
           '<section class="card">' +
             "<h2>People</h2>" +
@@ -1171,9 +1266,27 @@
                 "</button>"
               ).join("") +
             "</div>" +
+            '<div class="field" style="margin-top:1.25rem">' +
+              "<h3>Invite client</h3>" +
+              '<p class="muted">Optional. Prefer they sign up, then grant.</p>' +
+              '<form id="invite">' +
+                '<div class="field"><label>Name</label><input name="name" required value="' + esc(state.inviteName) + '" /></div>' +
+                '<div class="field"><label>Email</label><input name="email" type="email" required value="' + esc(state.inviteEmail) + '" /></div>' +
+                '<button class="ghost" type="submit"' + (sidecarOn ? "" : " disabled") + ">Invite and connect</button>" +
+              "</form></div>" +
           "</section>";
         const boxesCol =
-          '<section class="stack">' +
+          '<div class="stack">' +
+            '<section class="card" style="padding:0;overflow:hidden">' +
+              '<div style="padding:1.1rem 1.15rem;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-end;gap:1rem">' +
+                "<div><h2>Live hosts</h2><p class=\"muted\">Hostname and Halcyon ID from each connected Host.</p></div>" +
+                capacityPill(health) +
+              "</div>" +
+              '<table class="host-table"><thead><tr><th>Hostname</th><th>Host ID</th><th>Status</th></tr></thead><tbody>' +
+              hostRows + "</tbody></table></section>" +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1rem">' +
+              "<h3>" + (selected ? ("Environments for " + esc(selected.name || selected.email)) : "Environments") + "</h3>" +
+            "</div>" +
             sandboxes.map((box) => {
               const members = membersBySandbox[box.sandboxId] || [];
               const member = selected && members.some((m) => m.userId === selected.userId);
@@ -1186,42 +1299,35 @@
                     ? '<button class="ghost" data-revoke="' + esc(box.sandboxId) + '">Revoke</button>'
                     : '<button class="accent" data-grant="' + esc(box.sandboxId) + '">Grant</button>')
                 : '<p class="muted">Select a person.</p>';
+              const pin = box.pinnedHostId || box.capacityMode || "pool";
               return (
                 '<article class="card">' +
                   "<h2>" + esc(box.name) + "</h2>" +
                   '<p class="muted">' + esc(box.modelRef) + "</p>" +
+                  '<div class="field"><label>Capacity</label><select disabled title="Pin and pool go live with the multi-host registry">' +
+                    pinOptions(pin === "pin" ? (box.pinnedHostId || "pool") : pin) +
+                  "</select></div>" +
                   '<div class="chips">' + (chips || '<span class="chip">No members</span>') + "</div>" +
                   '<div class="actions">' + actions + "</div>" +
                 "</article>"
               );
             }).join("") +
-            (sandboxes.length ? "" : '<article class="card"><p class="muted">No connections yet. Create one on the right.</p></article>') +
-          "</section>";
-        const formCol =
-          '<aside class="stack">' +
+            (sandboxes.length ? "" : '<article class="card"><p class="muted">No connections yet. Create one below.</p></article>') +
             '<section class="card">' +
               "<h2>New connection</h2>" +
               '<p class="muted">Creates an isolated environment on the connected capacity.</p>' +
               '<form id="new-box">' +
                 '<div class="field"><label>Name</label><input name="name" required value="' + esc(state.name) + '" /></div>' +
                 '<div class="field"><label>Model</label><input name="modelRef" required value="' + esc(state.modelRef) + '" /></div>' +
+                '<div class="field"><label>Capacity</label><select name="capacity">' + pinOptions("pool") + "</select></div>" +
                 '<button class="accent" type="submit"' + (sidecarOn ? "" : " disabled") + ">Create</button>" +
               "</form>" +
             "</section>" +
-            '<section class="card">' +
-              "<h2>Invite client</h2>" +
-              '<p class="muted">Optional. Prefer they sign up, then grant. Invite emails a Cognito temp password and creates a private connection.</p>' +
-              '<form id="invite">' +
-                '<div class="field"><label>Name</label><input name="name" required value="' + esc(state.inviteName) + '" /></div>' +
-                '<div class="field"><label>Email</label><input name="email" type="email" required value="' + esc(state.inviteEmail) + '" /></div>' +
-                '<button class="ghost" type="submit"' + (sidecarOn ? "" : " disabled") + ">Invite and connect</button>" +
-              "</form>" +
-            "</section>" +
-          "</aside>";
+          "</div>";
         const err = state.error ? '<p class="err">' + esc(state.error) + "</p>" : "";
         shell(
-          strip + err + '<div class="admin-grid">' + usersCol + boxesCol + formCol + "</div>",
-          { title: "Access", sub: "Grant isolated environments to signed-in clients", wide: true }
+          err + '<div class="admin-grid">' + usersCol + boxesCol + "</div>",
+          { title: "Access", sub: "Grant isolated environments to signed-in clients", wide: true, health: health }
         );
         const qInput = document.getElementById("user-q");
         qInput.oninput = () => {
