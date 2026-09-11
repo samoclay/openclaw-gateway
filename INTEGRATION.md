@@ -16,7 +16,7 @@ Infra lives in `sam-terraform`. Read these, in order:
 |---|---|
 | Identity | `tenantId` on each sandbox (`tenantId = sandboxId` in v1). Never trust `tenantId` from the browser, sidecar, or Qwen. |
 | Events | CloudEvents from `@halcyon/telemetry`. Prompts/responses are rejected. Lambda stamps `tenant_id` from the sandbox row. |
-| Sidecar | `{ type: "telemetry" }` after chat. Lambda **must not** `PostToConnection` it to browsers (only `delta` / `done` / `error`). |
+| Sidecar | `{ type: "telemetry" }` after chat. Lambda **must not** `PostToConnection` it to browsers (only `delta` / `done` / `error` / `sealed`). |
 | Ingest | Portal Lambda `PutRecord` to Firehose only when `FIREHOSE_STREAM_NAME` is set. Watermark is always written. |
 | Serving | `GET /api/insights`, `GET /api/insights/:id`, `POST /api/insights/:id/status`, `GET /api/metrics/summary` — Dynamo only, membership-scoped. |
 | Extra tables | `{prefix}insights`, `{prefix}ingest_watermarks`, `{prefix}tenant_metrics` |
@@ -28,7 +28,7 @@ Local UI: `/insights`. Hosted SPA (`site/index.html`) is PKCE login + Insights d
 
 | Concern | This repo (`openclaw`) | `sam-terraform` |
 |---|---|---|
-| Full admin UI + chat UI | Yes — `apps/portal` (`npm run dev` → `/admin`, `/sandboxes/[id]`) | Insights after Cognito PKCE; **Access** at `#/admin` for allowlisted admins; chat still WebSocket |
+| Full admin UI + chat UI | Yes — `apps/portal` (`npm run dev` → `/admin`, `/sandboxes/[id]`) | Workspace `#/workspace`, Insights `#/insights`, **Access** `#/admin`; chat is sealed WebSocket |
 | Auth | Cookie `halcyon_session` + DynamoDB password (local) | Cognito Hosted UI + JWT |
 | Chat | `POST /api/sandboxes/:id/chat` SSE → loopback Gateway | WebSocket via AWS; REST chat returns **426** |
 | Reach Gateway | Portal holds `OPENCLAW_GATEWAY_TOKEN`, calls `:18789` | **Sidecar only** holds Gateway token; Lambda never does |
@@ -36,7 +36,7 @@ Local UI: `/insights`. Hosted SPA (`site/index.html`) is PKCE login + Insights d
 | Publish SPA | `.github/workflows/publish.yml` packages `site/index.html` | Pins `openclaw_spa_version`, serves CloudFront |
 | Publish Lambda | — | `publish-openclaw.yml` → `openclaw_lambda_version` |
 
-**UX today:** Staging `https://staging-portal.halcyonlabs.uk` = Cognito PKCE + Business Insights + `#/admin` Access for `openclaw_admin_emails`. Ordinary signup → labelled Sample workspace until an admin grants membership.
+**UX today:** Staging `https://staging-portal.halcyonlabs.uk` = Cognito PKCE + Workspace + Insights + `#/admin` Access. Ordinary signup → labelled Sample workspace until an admin grants membership.
 
 ```mermaid
 flowchart LR
@@ -75,6 +75,7 @@ Two isolated environments (separate Terraform state, VPC, IAM, Lambda, Cognito, 
 - `userId` = Cognito `sub`. Hosted users have no `passwordHash`
 - Chat on AWS is WebSocket, not `POST /api/sandboxes/:id/chat` (that returns 426)
 - Sidecar is the only caller of `http://127.0.0.1:18789`. `OPENCLAW_ENV=prod|staging`
+- Role `agentId` slugs use the last 16 alphanumeric of `sandboxId+roleId` so they do not collide with the sandbox default. Recreate older roster roles after pinning Lambda. Composer `@Name` / display-name handoff is in `site/index.html`; staging CloudFront updates on SPA publish (`scripts/package-spa.sh`).
 - Staging publish cannot `lambda:UpdateFunction*` on prod
 
 Prod flag: `deploy_openclaw = false` in `envs/production/production.tfvars` until explicitly applied. Requires `deploy_ses = true`. Staging has no flag.

@@ -3,25 +3,33 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Halcyon Insights</title>
+  <title>Halcyon</title>
   <style>
     :root {
       color-scheme: dark;
-      --bg: #0c1014;
-      --raised: #141b22;
-      --line: #243040;
-      --text: #e8eef4;
-      --muted: #8aa0b5;
-      --accent: #3ee0b2;
+      --bg: #000000;
+      --raised: #0b0b0e;
+      --surface-2: #141419;
+      --line: rgba(246, 196, 83, 0.14);
+      --line-strong: rgba(246, 196, 83, 0.30);
+      --text: #f5f2ea;
+      --muted: #b5afa1;
+      --accent: #f6c453;
+      --magenta: #e0902b;
       --danger: #ff6b7a;
       --warn: #f5c16c;
+      --glow-gold: 0 0 22px rgba(246, 196, 83, 0.28);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       min-height: 100vh;
-      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-      background: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(55% 45% at 12% -8%, rgba(246, 196, 83, 0.06), transparent 60%),
+        radial-gradient(50% 40% at 100% 0%, rgba(224, 144, 43, 0.05), transparent 55%);
+      background-attachment: fixed;
       color: var(--text);
     }
     a { color: var(--accent); text-decoration: none; }
@@ -29,21 +37,23 @@
       font: inherit;
       cursor: pointer;
       border: 0;
-      border-radius: 8px;
+      border-radius: 999px;
       padding: 0.55rem 1rem;
     }
-    .accent { background: var(--accent); color: #06251c; font-weight: 600; }
-    .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+    .accent { background: var(--accent); color: #1a1206; font-weight: 600; }
+    .accent:hover { box-shadow: var(--glow-gold); }
+    .ghost { background: transparent; color: var(--muted); border: 1px solid var(--line-strong); }
     .wrap { max-width: 56rem; margin: 0 auto; padding: 1.75rem 1.25rem 3rem; }
     .wrap.wide { max-width: 74rem; }
     .kicker {
-      letter-spacing: 0.25em;
+      letter-spacing: 0.32em;
       text-transform: uppercase;
       color: var(--accent);
       font-size: 0.72rem;
+      font-weight: 500;
       margin: 0 0 0.4rem;
     }
-    h1 { margin: 0 0 0.35rem; font-size: 1.85rem; }
+    h1 { margin: 0 0 0.35rem; font-size: 1.85rem; font-weight: 200; letter-spacing: 0.01em; }
     h2 { margin: 0 0 0.4rem; }
     h3 { margin: 0.9rem 0 0.35rem; font-size: 1rem; }
     .muted { color: var(--muted); }
@@ -102,7 +112,7 @@
     .mix-track {
       height: 8px;
       border-radius: 99px;
-      background: #0c1014;
+      background: #000;
       overflow: hidden;
     }
     .mix-fill {
@@ -181,6 +191,117 @@
       border-radius: 8px;
       padding: 0.5rem 0.65rem;
     }
+    .sun {
+      position: relative;
+      display: inline-flex;
+      width: 1.65rem;
+      height: 1.65rem;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+    }
+    .sun__core {
+      width: 0.72rem;
+      height: 0.72rem;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      box-shadow: 0 0 0.45em rgba(246, 196, 83, 0.7), inset 0 0 0.25em rgba(246, 196, 83, 0.35);
+    }
+    .sun .saturn {
+      position: absolute;
+      inset: -0.15rem;
+      transform: rotateX(72deg);
+      transform-style: preserve-3d;
+      pointer-events: none;
+    }
+    .sun.is-running .saturn { animation: orbit 7s linear infinite; }
+    .sun.is-running .sun__core { animation: planetPulse 3.4s ease-in-out infinite; }
+    .saturn__ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1.5px solid rgba(246, 196, 83, 0.85);
+    }
+    .saturn__ring--outer {
+      inset: -0.18rem;
+      border-color: rgba(246, 196, 83, 0.35);
+    }
+    @keyframes orbit {
+      from { transform: rotateX(72deg) rotateZ(0deg); }
+      to { transform: rotateX(72deg) rotateZ(360deg); }
+    }
+    @keyframes planetPulse {
+      0%, 100% { box-shadow: 0 0 0.4em rgba(246, 196, 83, 0.55); }
+      50% { box-shadow: 0 0 0.85em rgba(246, 196, 83, 0.95); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .sun.is-running .saturn { animation: none; }
+      .sun.is-running .sun__core { animation: planetPulse 3.4s ease-in-out infinite; }
+    }
+    .desk {
+      display: grid;
+      grid-template-columns: minmax(13rem, 16rem) 1fr;
+      gap: 0.85rem;
+      min-height: 70vh;
+    }
+    @media (max-width: 840px) {
+      .desk { grid-template-columns: 1fr; }
+    }
+    .roster { display: grid; gap: 0.45rem; align-content: start; }
+    .agent-box {
+      display: flex;
+      gap: 0.65rem;
+      align-items: center;
+      text-align: left;
+      width: 100%;
+      background: var(--raised);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0.7rem 0.8rem;
+    }
+    .agent-box.sel { border-color: var(--accent); }
+    .agent-box small { display: block; color: var(--muted); font-size: 0.75rem; }
+    .room {
+      display: flex;
+      flex-direction: column;
+      min-height: 70vh;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--raised);
+    }
+    .bubbles {
+      flex: 1;
+      overflow: auto;
+      padding: 1rem;
+      display: grid;
+      gap: 0.7rem;
+      align-content: start;
+    }
+    .bubble {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.7rem 0.85rem;
+      background: #000;
+    }
+    .bubble header {
+      display: flex;
+      gap: 0.45rem;
+      align-items: center;
+      margin-bottom: 0.35rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .composer {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.75rem;
+      border-top: 1px solid var(--line);
+    }
+    .composer input { flex: 1; }
+    .err-card { border-color: color-mix(in srgb, var(--danger) 40%, var(--line)); }
   </style>
 </head>
 <body>
@@ -289,6 +410,8 @@
     function route() {
       const hash = location.hash.replace(/^#/, "") || "/";
       if (hash === "/admin" || hash.startsWith("/admin/")) return { name: "admin" };
+      if (hash === "/insights") return { name: "home" };
+      if (hash === "/workspace" || hash === "/") return { name: "workspace" };
       const detail = hash.match(/^\/insight\/([^/]+)$/);
       if (detail) return { name: "detail", id: decodeURIComponent(detail[1]) };
       return { name: "home" };
@@ -308,6 +431,91 @@
       let bin = "";
       bytes.forEach((b) => { bin += String.fromCharCode(b); });
       return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }
+
+    function fromB64url(text) {
+      const pad = text.replace(/-/g, "+").replace(/_/g, "/");
+      const bin = atob(pad);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+
+    const HOP_SALT = new TextEncoder().encode("halcyon-hop-v1");
+
+    async function hopGenerate() {
+      return crypto.subtle.generateKey({ name: "X25519" }, true, ["deriveBits"]);
+    }
+
+    async function hopExportRaw(pair) {
+      return new Uint8Array(await crypto.subtle.exportKey("raw", pair.publicKey));
+    }
+
+    async function hopImportRaw(bytes) {
+      return crypto.subtle.importKey("raw", bytes, { name: "X25519" }, true, []);
+    }
+
+    async function hopAesKey(myPrivate, peerRaw, sandboxId, threadId) {
+      const peer = await hopImportRaw(peerRaw);
+      const secret = await crypto.subtle.deriveBits(
+        { name: "X25519", public: peer },
+        myPrivate,
+        256,
+      );
+      const ikm = await crypto.subtle.importKey("raw", secret, "HKDF", false, ["deriveKey"]);
+      const info = new TextEncoder().encode(sandboxId + ":" + threadId);
+      return crypto.subtle.deriveKey(
+        { name: "HKDF", hash: "SHA-256", salt: HOP_SALT, info: info },
+        ikm,
+        { name: "AES-GCM", length: 256 },
+        false,
+        ["encrypt", "decrypt"],
+      );
+    }
+
+    async function hopSeal(myPrivate, peerRaw, sandboxId, threadId, payload) {
+      const key = await hopAesKey(myPrivate, peerRaw, sandboxId, threadId);
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const aad = new TextEncoder().encode(sandboxId + ":" + threadId);
+      const ct = new Uint8Array(
+        await crypto.subtle.encrypt(
+          { name: "AES-GCM", iv: iv, additionalData: aad },
+          key,
+          new TextEncoder().encode(JSON.stringify(payload)),
+        ),
+      );
+      const blob = new Uint8Array(iv.length + ct.length);
+      blob.set(iv, 0);
+      blob.set(ct, iv.length);
+      return b64url(blob);
+    }
+
+    async function hopOpen(myPrivate, peerRaw, sandboxId, threadId, sealed) {
+      const key = await hopAesKey(myPrivate, peerRaw, sandboxId, threadId);
+      const blob = fromB64url(sealed);
+      const iv = blob.slice(0, 12);
+      const ct = blob.slice(12);
+      const aad = new TextEncoder().encode(sandboxId + ":" + threadId);
+      const plain = await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: iv, additionalData: aad },
+        key,
+        ct,
+      );
+      return JSON.parse(new TextDecoder().decode(plain));
+    }
+
+    function sunHtml(running) {
+      return '<span class="sun' + (running ? " is-running" : "") + '" aria-hidden="true">' +
+        '<span class="sun__core"></span>' +
+        '<span class="saturn"><span class="saturn__ring saturn__ring--outer"></span><span class="saturn__ring"></span></span>' +
+      "</span>";
+    }
+
+    function formatChainError(err) {
+      if (err && err.title && err.detail) {
+        return "<strong>" + esc(err.title) + "</strong> · " + esc(err.stage || "") + "<br>" + esc(err.detail);
+      }
+      return esc((err && (err.error || err.message)) || "Something went wrong");
     }
 
     function randomUrl(len) {
@@ -397,7 +605,12 @@
         },
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || data.message || ("HTTP " + res.status));
+      if (!res.ok) {
+        const msg = data.title && data.detail
+          ? (data.title + " — " + data.detail)
+          : (data.error || data.message || ("HTTP " + res.status));
+        throw new Error(msg);
+      }
       return data;
     }
 
@@ -447,8 +660,8 @@
       app.innerHTML =
         "<main>" +
           '<p class="kicker">Halcyon</p>' +
-          "<h1>Business Insights</h1>" +
-          '<p class="muted">Sign in to see recommendations for your workspace. Without a sandbox you will see a labelled sample, not another customer\'s data.</p>' +
+          "<h1>Your environment</h1>" +
+          '<p class="muted">Sign in to open Workspace. Without a sandbox you will see a labelled sample, not another customer\'s data.</p>' +
           (message ? '<p class="err">' + message + "</p>" : "") +
           '<p><button class="accent" id="login">Open hosted login</button></p>' +
         "</main>";
@@ -458,8 +671,8 @@
     }
 
     function shell(inner, options) {
-      const title = (options && options.title) || "Business Insights";
-      const sub = (options && options.sub) || ((me && me.email ? me.email : "") + " — intelligence, not raw telemetry");
+      const title = (options && options.title) || "Workspace";
+      const sub = (options && options.sub) || ((me && me.email ? me.email : "") + " — isolated private AI");
       const adminNav = me && me.role === "admin"
         ? '<a class="ghost" href="#/admin">Access</a>'
         : "";
@@ -473,7 +686,8 @@
               '<p class="muted">' + sub + "</p>" +
             "</div>" +
             '<div class="nav">' +
-              '<a class="ghost" href="#/">Insights</a>' +
+              '<a class="ghost" href="#/workspace">Workspace</a>' +
+              '<a class="ghost" href="#/insights">Insights</a>' +
               adminNav +
               '<button class="ghost" id="out">Sign out</button>' +
             "</div>" +
@@ -521,7 +735,10 @@
       const empty = (!insights || !insights.length)
         ? '<p class="muted">No insights yet for this workspace.</p>'
         : "";
-      shell(banner + warn + kpis + charts + '<div class="insights">' + cards + empty + "</div>");
+      shell(banner + warn + kpis + charts + '<div class="insights">' + cards + empty + "</div>", {
+        title: "Insights",
+        sub: (me && me.email ? me.email : "") + " — usage, not prompts",
+      });
     }
 
     function renderDetail(insight, options) {
@@ -538,7 +755,7 @@
         : "";
       shell(
         banner +
-        '<p><a href="#/">← Insights</a></p>' +
+        '<p><a href="#/insights">← Insights</a></p>' +
         '<article class="card" style="margin-top:1rem">' +
           '<p class="meta sev-' + insight.severity + '">' + insight.category + " · " + insight.periodStart + " – " + insight.periodEnd + "</p>" +
           "<h2>" + insight.title + "</h2>" +
@@ -547,7 +764,8 @@
           "<h3>Evidence</h3><ul class=\"evidence\">" + evidence + "</ul>" +
           "<h3>Recommended action</h3><p>" + insight.recommendedAction + "</p>" +
           actions +
-        "</article>"
+        "</article>",
+        { title: "Insights" }
       );
       app.querySelectorAll("[data-status]").forEach((btn) => {
         btn.onclick = async () => {
@@ -568,6 +786,315 @@
           }
         };
       });
+    }
+
+    async function renderWorkspace(boxes) {
+      const list = boxes || [];
+      const currentId = (function () {
+        try { return sessionStorage.getItem("halcyon_sandbox") || (list[0] && list[0].sandboxId) || ""; }
+        catch { return (list[0] && list[0].sandboxId) || ""; }
+      })();
+      const current = list.find((row) => row.sandboxId === currentId) || list[0];
+      if (!current) {
+        shell(
+          '<p class="banner">' + formatChainError({
+            title: "No environment yet",
+            stage: "portal",
+            detail: "You do not have an isolated environment. An admin must grant one in Access.",
+          }) + "</p>",
+          { title: "Workspace", wide: true },
+        );
+        return;
+      }
+      sessionStorage.setItem("halcyon_sandbox", current.sandboxId);
+      let roster;
+      let health;
+      try {
+        const [rolesRes, healthRes] = await Promise.all([
+          api("/api/sandboxes/" + encodeURIComponent(current.sandboxId) + "/roles"),
+          api("/api/health").catch(() => ({ sidecar: false })),
+        ]);
+        roster = rolesRes;
+        health = healthRes;
+      } catch (err) {
+        shell('<p class="err">' + esc(err.message) + "</p>", { title: "Workspace", wide: true });
+        return;
+      }
+      const roles = [roster.defaultRole].concat(roster.roles || []).filter(Boolean);
+      const sidecarOn = !!health.sidecar;
+      const state = {
+        sandbox: current,
+        roles: roles,
+        selected: "default",
+        mention: "",
+        threadId: sessionStorage.getItem("halcyon_thread_" + current.sandboxId) || "",
+        bubbles: [],
+        pending: false,
+        running: "",
+        hop: null,
+        note: "",
+        persist: false,
+      };
+
+      async function roomStore() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open("halcyon-workspace", 1);
+          req.onupgradeneeded = () => req.result.createObjectStore("rooms");
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      function roomKeyName() {
+        const t = tokens();
+        let sub = "anon";
+        try {
+          const payload = JSON.parse(atob(t.id_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+          sub = payload.sub || "anon";
+        } catch { /* ignore */ }
+        return sub + ":" + current.sandboxId + ":" + (state.threadId || "none");
+      }
+
+      async function loadBubbles() {
+        if (!state.threadId) return;
+        try {
+          const db = await roomStore();
+          const row = await new Promise((resolve, reject) => {
+            const tx = db.transaction("rooms").objectStore("rooms").get(roomKeyName());
+            tx.onsuccess = () => resolve(tx.result);
+            tx.onerror = () => reject(tx.error);
+          });
+          if (row && Array.isArray(row.bubbles)) state.bubbles = row.bubbles;
+        } catch {
+          state.note = "History will not be saved on this device. Live chat continues in memory.";
+        }
+      }
+
+      async function saveBubbles() {
+        if (!state.threadId) return;
+        try {
+          const db = await roomStore();
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction("rooms", "readwrite").objectStore("rooms").put(
+              { bubbles: state.bubbles },
+              roomKeyName(),
+            );
+            tx.onsuccess = () => resolve();
+            tx.onerror = () => reject(tx.error);
+          });
+        } catch { /* memory only */ }
+      }
+      async function paint() {
+        const switcher = list.length > 1
+          ? '<div class="field"><label>Environment</label><select id="sbx">' +
+            list.map((row) =>
+              '<option value="' + esc(row.sandboxId) + '"' + (row.sandboxId === current.sandboxId ? " selected" : "") + ">" +
+              esc(row.name) + "</option>"
+            ).join("") + "</select></div>"
+          : "";
+        const rosterHtml = roles.map((role) =>
+          '<button type="button" class="agent-box' + (state.selected === role.roleId ? " sel" : "") + '" data-role="' + esc(role.roleId) + '">' +
+            sunHtml(state.running === role.roleId) +
+            "<span><strong>" + esc(role.displayName) + "</strong><small>" +
+            (state.running === role.roleId ? "Running" : "Idle") + "</small></span></button>"
+        ).join("");
+        const bubbles = (state.bubbles.length ? state.bubbles : [{ role: "system", text: "Ask this crew. Use @Name to hand off to another agent." }]).map((row) => {
+          const running = row.roleId && state.running === row.roleId && row.role !== "you";
+          return '<article class="bubble' + (row.err ? " err-card" : "") + '"><header>' +
+            (row.role === "you" ? "" : sunHtml(!!running)) +
+            esc(row.label || row.role) + "</header><div>" + esc(row.text) + "</div></article>";
+        }).join("");
+        const banner = '<p class="banner" style="display:flex;flex-wrap:wrap;gap:0.6rem;align-items:center">' +
+          '<span class="pill ' + (sidecarOn ? "on" : "off") + '">' + (sidecarOn ? "Capacity connected" : "Capacity offline") + "</span>" +
+          (state.note ? '<span class="muted">' + esc(state.note) + "</span>" : "") +
+        "</p>";
+        shell(
+          banner + switcher +
+          '<div class="desk">' +
+            '<aside class="roster">' + rosterHtml +
+              '<form id="add-role" class="card"><div class="field"><label>New agent</label><input name="name" placeholder="Display name" required></div>' +
+              '<button class="accent" type="submit"' + (sidecarOn ? "" : " disabled") + ">Add</button></form>" +
+            "</aside>" +
+            '<section class="room"><div class="bubbles" id="bubbles">' + bubbles + "</div>" +
+              '<form class="composer" id="chat">' +
+                '<input id="msg" placeholder="Message this crew… @Name to hand off" ' + (sidecarOn && !state.pending ? "" : "disabled") + '>' +
+                '<button class="accent" type="submit"' + (sidecarOn && !state.pending ? "" : " disabled") + ">Send</button>" +
+                '<button class="ghost" type="button" id="new-thread">New thread</button>' +
+              "</form></section>" +
+          "</div>",
+          { title: current.name || "Workspace", sub: (me && me.email ? me.email : "") + " — crew room", wide: true },
+        );
+        const sbx = document.getElementById("sbx");
+        if (sbx) sbx.onchange = () => {
+          sessionStorage.setItem("halcyon_sandbox", sbx.value);
+          renderWorkspace(list);
+        };
+        app.querySelectorAll("[data-role]").forEach((btn) => {
+          btn.onclick = () => { state.selected = btn.getAttribute("data-role"); paint(); };
+        });
+        document.getElementById("new-thread").onclick = () => {
+          state.threadId = "";
+          state.bubbles = [];
+          sessionStorage.removeItem("halcyon_thread_" + current.sandboxId);
+          paint();
+        };
+        document.getElementById("add-role").onsubmit = async (event) => {
+          event.preventDefault();
+          const name = event.target.name.value.trim();
+          if (!name) return;
+          try {
+            await api("/api/sandboxes/" + encodeURIComponent(current.sandboxId) + "/roles", {
+              method: "POST",
+              body: JSON.stringify({ name: name }),
+            });
+            await renderWorkspace(list);
+          } catch (err) {
+            state.note = err.message;
+            paint();
+          }
+        };
+        document.getElementById("chat").onsubmit = (event) => {
+          event.preventDefault();
+          sendTurn();
+        };
+      }
+
+      async function ensureHop() {
+        if (state.hop) return state.hop;
+        if (!health.pubKey) throw Object.assign(new Error("crypto"), {
+          title: "Could not start a private session",
+          stage: "browser",
+          detail: "This browser could not agree encryption keys with the inference host. Refresh and try again.",
+        });
+        const pair = await hopGenerate();
+        state.hop = { pair: pair, peer: fromB64url(health.pubKey) };
+        return state.hop;
+      }
+
+      function mentionFromText(text) {
+        const match = text.match(/@([A-Za-z0-9._-]+)/);
+        if (match) {
+          const hit = roles.find((role) => role.displayName.toLowerCase() === match[1].toLowerCase() || role.roleId === match[1]);
+          if (hit && hit.roleId !== "default") return hit.roleId;
+        }
+        const siblings = roles.filter((role) => role.roleId && role.roleId !== "default");
+        for (const role of siblings) {
+          const name = String(role.displayName || "").trim();
+          if (name.length < 2) continue;
+          const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const word = new RegExp("(?:^|[^A-Za-z0-9])" + escaped + "(?:[^A-Za-z0-9]|$)", "i");
+          if (word.test(text)) return role.roleId;
+        }
+        return "";
+      }
+
+      async function sendTurn() {
+        const input = document.getElementById("msg");
+        const text = (input && input.value || "").trim();
+        if (!text || state.pending) return;
+        input.value = "";
+        state.pending = true;
+        state.bubbles.push({ role: "you", label: "You", text: text });
+        await paint();
+        try {
+          const hop = await ensureHop();
+          const t = tokens() || {};
+          const ws = new WebSocket("wss://" + cfg.wsHost + "?token=" + encodeURIComponent(t.access_token || t.id_token || ""));
+          await new Promise((resolve, reject) => {
+            ws.onopen = () => resolve();
+            ws.onerror = () => {
+              reject(Object.assign(new Error("ws"), {
+                title: "Capacity is offline",
+                stage: "sidecar",
+                detail: "The portal reached our servers, but the inference host is not connected. Chat stays disabled until capacity shows connected.",
+              }));
+            };
+          });
+          const mentionRoleId = mentionFromText(text) || (state.selected !== "default" ? state.selected : "");
+          if (!state.threadId) {
+            state.threadId = (crypto.randomUUID && crypto.randomUUID()) || String(Date.now());
+            sessionStorage.setItem("halcyon_thread_" + current.sandboxId, state.threadId);
+          }
+          const sealed = await hopSeal(hop.pair.privateKey, hop.peer, current.sandboxId, state.threadId, { message: text });
+          const body = {
+            sandboxId: current.sandboxId,
+            threadId: state.threadId,
+            clientPubKey: b64url(await hopExportRaw(hop.pair)),
+            sealed: sealed,
+          };
+          if (mentionRoleId) body.mentionRoleId = mentionRoleId;
+          ws.send(JSON.stringify(body));
+          ws.onmessage = async (event) => {
+            let msg;
+            try { msg = JSON.parse(event.data); } catch { return; }
+            if (msg.type === "ack" && msg.threadId) {
+              const old = state.threadId;
+              state.threadId = msg.threadId;
+              sessionStorage.setItem("halcyon_thread_" + current.sandboxId, msg.threadId);
+              if (!old) {
+                /* first box used AAD pending — Lambda still accepted sealed with pending thread; BAD */
+              }
+            }
+            if (msg.type === "error") {
+              state.pending = false;
+              state.running = "";
+              state.bubbles.push({ role: "error", label: "Error", text: (msg.title || msg.error || "") + " — " + (msg.detail || ""), err: true });
+              ws.close();
+              paint();
+              return;
+            }
+            if (msg.type === "sealed") {
+              try {
+                const opened = await hopOpen(hop.pair.privateKey, hop.peer, current.sandboxId, state.threadId, msg.sealed);
+                const from = opened.fromRoleId || msg.fromRoleId || "default";
+                state.running = from;
+                const role = roles.find((row) => row.roleId === from);
+                const last = state.bubbles[state.bubbles.length - 1];
+                if (last && last.roleId === from && last.role !== "you") {
+                  last.text += opened.delta || "";
+                } else {
+                  state.bubbles.push({
+                    role: "agent",
+                    roleId: from,
+                    label: (role && role.displayName) || from,
+                    text: opened.delta || "",
+                  });
+                }
+                paint();
+              } catch {
+                state.bubbles.push({
+                  role: "error",
+                  label: "Error",
+                  text: "A reply could not be unlocked — browser. A message arrived from the host but this session could not decrypt it.",
+                  err: true,
+                });
+                paint();
+              }
+            }
+            if (msg.type === "done") {
+              state.running = "";
+              state.pending = false;
+              ws.close();
+              saveBubbles();
+              paint();
+            }
+          };
+        } catch (err) {
+          state.pending = false;
+          state.running = "";
+          state.bubbles.push({ role: "error", label: "Error", text: formatChainError(err).replace(/<[^>]+>/g, " "), err: true });
+          paint();
+        }
+      }
+
+      try {
+        if (!window.indexedDB) {
+          state.note = "History will not be saved on this device. Live chat continues in memory.";
+        } else {
+          await loadBubbles();
+        }
+      } catch { /* ignore */ }
+      await paint();
     }
 
     function showSample(view, note) {
@@ -812,10 +1339,25 @@
         }
         const hasMembership = !!(sandboxes.sandboxes && sandboxes.sandboxes.length);
         if (!hasMembership) {
-          showSample(view);
+          if (view.name === "workspace") {
+            shell(
+              '<p class="banner">' + formatChainError({
+                title: "No environment yet",
+                stage: "portal",
+                detail: "You do not have an isolated environment. An admin must grant one in Access.",
+              }) + "</p>",
+              { title: "Workspace" },
+            );
+            return;
+          }
+          showSample(view.name === "workspace" ? { name: "home" } : view);
           return;
         }
         try {
+          if (view.name === "workspace") {
+            await renderWorkspace(sandboxes.sandboxes);
+            return;
+          }
           if (view.name === "detail") {
             const local = sampleInsight(view.id);
             if (local) {

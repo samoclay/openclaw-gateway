@@ -86,6 +86,7 @@ describe("isClientForwardableSidecarType", () => {
     expect(isClientForwardableSidecarType("delta")).toBe(true);
     expect(isClientForwardableSidecarType("done")).toBe(true);
     expect(isClientForwardableSidecarType("error")).toBe(true);
+    expect(isClientForwardableSidecarType("sealed")).toBe(true);
     expect(isClientForwardableSidecarType("telemetry")).toBe(false);
     expect(isClientForwardableSidecarType("bi_analyze")).toBe(false);
   });
