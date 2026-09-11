@@ -1307,6 +1307,90 @@
                 esc(h.hostname || id) + " (" + esc(id) + ")</option>";
             }).join("");
         }
+        function displayTag(tag) {
+          const t = String(tag || "");
+          return t.indexOf("ollama/") === 0 ? t.slice(7) : t;
+        }
+        function modelBand(size) {
+          const n = Number(size) || 0;
+          if (n > 400 * 1024 * 1024) return "large";
+          if (n >= 200 * 1024 * 1024) return "standard";
+          return "compact";
+        }
+        function bandHint(band) {
+          if (band === "large") return " — higher capacity";
+          if (band === "compact") return " — lower capacity";
+          return "";
+        }
+        function unionModels(hostsList, pinHostId) {
+          const src = (hostsList || []).filter(function (h) {
+            return !pinHostId || h.hostId === pinHostId;
+          });
+          const by = {};
+          src.forEach(function (h) {
+            (h.models || []).forEach(function (m) {
+              const tag = m.tag || "";
+              if (!tag) return;
+              if (!by[tag] || (m.size || 0) > (by[tag].size || 0)) by[tag] = m;
+            });
+          });
+          return Object.keys(by).sort().map(function (k) { return by[k]; });
+        }
+        function modelOptionValue(tag) {
+          const t = String(tag || "");
+          return t.indexOf("ollama/") === 0 ? t : "ollama/" + t;
+        }
+        function modelOptionLabel(m) {
+          const band = modelBand(m.size);
+          const cap = band.charAt(0).toUpperCase() + band.slice(1);
+          return displayTag(m.tag) + " — " + cap + bandHint(band);
+        }
+        function sandboxModelLine(box) {
+          const shown = displayTag(box.modelRef);
+          const match = unionModels(hosts, "").find(function (m) {
+            return displayTag(m.tag) === shown;
+          });
+          if (!match) return shown;
+          const band = modelBand(match.size);
+          const cap = band.charAt(0).toUpperCase() + band.slice(1);
+          return shown + " — " + cap + bandHint(band);
+        }
+        function modelSelectHtml(selectedRef, pinHostId) {
+          const models = unionModels(hosts, pinHostId);
+          const empty = models.length === 0;
+          const values = models.map(function (m) { return modelOptionValue(m.tag); });
+          const keep = selectedRef && values.indexOf(selectedRef) !== -1 ? selectedRef : values[0] || "";
+          const opts = models.map(function (m) {
+            const val = modelOptionValue(m.tag);
+            return '<option value="' + esc(val) + '"' + (val === keep ? " selected" : "") + ">" +
+              esc(modelOptionLabel(m)) + "</option>";
+          }).join("");
+          return {
+            empty: empty,
+            html: '<select name="modelRef"' + (empty ? " disabled" : "") + ">" + opts + "</select>",
+          };
+        }
+        function fillCreateModels(keepValue) {
+          const form = document.getElementById("new-box");
+          if (!form) return;
+          const capSel = form.capacity;
+          const modelSel = form.modelRef;
+          const createBtn = form.querySelector('button[type="submit"]');
+          const pinHostId = !capSel || capSel.value === "pool" ? "" : capSel.value;
+          const models = unionModels(hosts, pinHostId);
+          const values = models.map(function (m) { return modelOptionValue(m.tag); });
+          modelSel.innerHTML = models.map(function (m) {
+            return '<option value="' + esc(modelOptionValue(m.tag)) + '">' +
+              esc(modelOptionLabel(m)) + "</option>";
+          }).join("");
+          modelSel.disabled = models.length === 0;
+          if (createBtn) createBtn.disabled = models.length === 0 || !sidecarOn;
+          if (models.length) {
+            modelSel.value = (keepValue && values.indexOf(keepValue) !== -1) ? keepValue : values[0];
+          }
+        }
+        const createModels = modelSelectHtml(state.modelRef, "");
+        const createDisabled = createModels.empty || !sidecarOn;
         const usersCol =
           '<section class="card">' +
             "<h2>People</h2>" +
@@ -1358,7 +1442,7 @@
               return (
                 '<article class="card">' +
                   "<h2>" + esc(box.name) + "</h2>" +
-                  '<p class="muted">' + esc(box.modelRef) + "</p>" +
+                  '<p class="muted">' + esc(sandboxModelLine(box)) + "</p>" +
                   '<div class="field"><label>Capacity</label><select data-capacity="' + esc(box.sandboxId) + '">' +
                     pinOptions(pin) +
                   "</select></div>" +
@@ -1369,13 +1453,13 @@
             }).join("") +
             (sandboxes.length ? "" : '<article class="card"><p class="muted">No connections yet. Create one below.</p></article>') +
             '<section class="card">' +
-              "<h2>New connection</h2>" +
-              '<p class="muted">Creates an isolated environment on the connected capacity.</p>' +
+              "<h2>New Sandbox</h2>" +
+              '<p class="muted">Creates an isolated environment. Not a host.</p>' +
               '<form id="new-box">' +
                 '<div class="field"><label>Name</label><input name="name" required value="' + esc(state.name) + '" /></div>' +
-                '<div class="field"><label>Model</label><input name="modelRef" required value="' + esc(state.modelRef) + '" /></div>' +
+                '<div class="field"><label>Model</label>' + createModels.html + "</div>" +
                 '<div class="field"><label>Capacity</label><select name="capacity">' + pinOptions("pool") + "</select></div>" +
-                '<button class="accent" type="submit"' + (sidecarOn ? "" : " disabled") + ">Create</button>" +
+                '<button class="accent" type="submit"' + (createDisabled ? " disabled" : "") + ">Create</button>" +
               "</form>" +
             "</section>" +
           "</div>";
@@ -1454,7 +1538,11 @@
             }
           };
         });
-        document.getElementById("new-box").onsubmit = async (event) => {
+        const newBoxForm = document.getElementById("new-box");
+        newBoxForm.capacity.onchange = function () {
+          fillCreateModels(newBoxForm.modelRef.value);
+        };
+        newBoxForm.onsubmit = async (event) => {
           event.preventDefault();
           const form = event.target;
           try {
