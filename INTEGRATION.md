@@ -87,7 +87,7 @@ Prod flag: `deploy_openclaw = false` in `envs/production/production.tfvars` unti
 | Hosted SPA `site/index.html` | this repo `.github/workflows/publish.yml` | `openclaw_spa_version` in that env’s tfvars |
 | Lambda zip | `sam-terraform` `.github/workflows/publish-openclaw.yml` | `openclaw_lambda_version` |
 
-**SPA versions:** CloudFront pin is the **git SHA** (`openclaw_spa_version`, S3 `spa/<sha>/`). GitHub Releases are **semver** (`v0.1.0` tags on `master`/`main`); notes include the SHA to pin. Branch pushes do not create Releases.
+**SPA versions:** CloudFront pin is the **git SHA** (`openclaw_spa_version`, S3 `spa/<sha>/`). GitHub Releases are **semver**: `staging` → `vX.Y.Z-rc.N` (prerelease); merge `staging` into `master` → `vX.Y.Z`. Notes include the SHA to pin.
 
 **Staging SPA pin PR:** After a successful upload to the staging artifacts bucket, Publish opens or updates PR branch `bots/openclaw-spa-pin` → base `main` on `samoclay/sam-terraform`, setting `openclaw_spa_version` in `envs/staging/staging.tfvars` only (staging vs prod is the `envs/` folder, not a git branch). Merge that PR to apply staging. Requires repo secret `SAM_TERRAFORM_TOKEN` (fine-grained PAT: contents + pull requests on `samoclay/sam-terraform`). Production pins stay manual in `production.tfvars`.
 
