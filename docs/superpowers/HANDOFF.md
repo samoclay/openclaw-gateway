@@ -13,7 +13,7 @@ Read these, in order. Do not re-brainstorm.
 
 **Theme:** gold-on-black tokens from `halcyon-website/assets/css/styles.css`. Spinning sun = splash gold O + Saturn rings. `prefers-reduced-motion`: pulse only.
 
-**History:** v1 stores the room in this browser’s IndexedDB (not Dynamo). Passkey PRF wrapping is a follow-up; AWS still never receives prompt text.
+**History:** v1 stores each agent room encrypted (AES-GCM) in this browser’s IndexedDB (not Dynamo, not Kendra). AWS still never receives prompt text. New device = empty. Clear history wipes every agent room for that sandbox on this device.
 
 **Do not:** store prompts in Dynamo/S3/Firehose; trust client `agentId`/`model`/`tenantId`; enable Gateway-wide `sessions_send`; vendor Control UI / OpenMausBot; add CloudFront behaviors; split the SPA into extra S3 objects.
 

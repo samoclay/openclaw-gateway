@@ -19,7 +19,7 @@ Access is **sandbox membership**. v1 `tenantId` equals `sandboxId`. Never trust 
 
 ## Telemetry
 
-Prompts and responses must not be stored. Stamp events with `@halcyon/telemetry`. Sidecar `telemetry` is never forwarded to browsers.
+Prompts and responses must not be stored on AWS. Workspace history may live encrypted in this browser’s IndexedDB (AES-GCM, per sandbox + agent), or memory-only. Stamp events with `@halcyon/telemetry`. Sidecar `telemetry` is never forwarded to browsers.
 
 ## CI
 
