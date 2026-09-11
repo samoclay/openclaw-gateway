@@ -4,6 +4,8 @@ All notable changes to the OpenClaw portal and contract are documented in this f
 
 ## [Unreleased]
 
+## [0.1.1-rc.4] - 2026-09-11
+- Merge pull request #36 from samoclay/feature/host-portal-token
 ## [0.1.1-rc.3] - 2026-09-11
 - Merge pull request #35 from samoclay/feature/multi-host-capacity
 ## [0.1.1-rc.2] - 2026-09-11
