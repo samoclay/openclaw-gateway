@@ -1,18 +1,21 @@
-# Semver bump + GitHub Release on merge to master/main. Staging does not bump.
+# Semver GitHub Releases: staging = rc prerelease, master = stable (promote).
 name: Release
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, staging]
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   release:
     name: Bump VERSION and tag
     runs-on: ubuntu-latest
     if: ${{ !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    outputs:
+      version: ${{ steps.bump.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -25,10 +28,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_SHA: ${{ github.sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           chmod +x scripts/bump-release.sh
-          ver="$(bash scripts/bump-release.sh "OpenClaw portal")"
+          KIND=patch
+          if [[ -n "${GITHUB_SHA:-}" ]]; then
+            labels="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" --jq '.[].labels[].name' 2>/dev/null || true)"
+            if echo "$labels" | grep -qx 'release:major'; then KIND=major
+            elif echo "$labels" | grep -qx 'release:minor'; then KIND=minor
+            fi
+          fi
+          ver="$(bash scripts/bump-release.sh "OpenClaw portal" "$KIND")"
           echo "version=$ver" >> "$GITHUB_OUTPUT"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -37,4 +48,37 @@ jobs:
           git tag "v${ver}"
           git push origin HEAD
           git push origin "v${ver}"
-          gh release create "v${ver}" --title "OpenClaw v${ver}" --notes-file RELEASE.md
+          title="OpenClaw v${ver}"
+          if [[ "$ver" == *-rc.* ]]; then
+            gh release create "v${ver}" --prerelease --title "$title" --notes-file RELEASE.md
+          else
+            gh release create "v${ver}" --title "$title" --notes-file RELEASE.md
+          fi
+
+  sync-staging:
+    name: PR master into staging
+    needs: release
+    if: github.ref_name == 'master' || github.ref_name == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Open sync PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VER: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch origin "${GITHUB_REF_NAME}"
+          git checkout -B bots/sync-master-to-staging "origin/${GITHUB_REF_NAME}"
+          git push -u origin bots/sync-master-to-staging --force
+          body="Keep staging VERSION in sync after stable v${VER}. Merge into staging so the next RC continues from this release."
+          if gh pr view bots/sync-master-to-staging --json number -q .number >/dev/null 2>&1; then
+            gh pr edit bots/sync-master-to-staging --base staging --title "chore(release): sync v${VER} to staging" --body "$body"
+          else
+            gh pr create --base staging --head bots/sync-master-to-staging \
+              --title "chore(release): sync v${VER} to staging" --body "$body"
+          fi
