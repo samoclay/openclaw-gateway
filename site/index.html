@@ -1289,10 +1289,14 @@
         const hosts = Array.isArray(state.payload.hosts) ? state.payload.hosts : [];
         const hostRows = hosts.length
           ? hosts.map(function (h) {
-              return "<tr><td>" + esc(h.hostname || "—") + "</td><td>" + esc(h.hostId || "") +
-                "</td><td><span class=\"pill on\">Online</span></td></tr>";
+              const id = h.hostId || "";
+              return "<tr><td>" + esc(h.hostname || "—") + "</td><td>" + esc(id) +
+                "</td><td><span class=\"pill on\">Online</span></td><td class=\"actions\">" +
+                '<button type="button" class="ghost" data-host-token="' + esc(id) + '" data-host-name="' +
+                esc(h.hostname || "host") + '">New token</button> ' +
+                '<button type="button" class="ghost" data-host-revoke="' + esc(id) + '">Revoke</button></td></tr>';
             }).join("")
-          : '<tr><td colspan="3" class="muted">No live hosts yet. Connect Halcyon Host; they appear as hostname + Halcyon ID.</td></tr>';
+          : '<tr><td colspan="4" class="muted">No live hosts yet. Connect Halcyon Host; they appear as hostname + Halcyon ID.</td></tr>';
         function pinOptions(selected) {
           const cur = selected || "pool";
           const liveIds = hosts.map(function (h) { return h.hostId || ""; });
@@ -1307,6 +1311,90 @@
                 esc(h.hostname || id) + " (" + esc(id) + ")</option>";
             }).join("");
         }
+        function displayTag(tag) {
+          const t = String(tag || "");
+          return t.indexOf("ollama/") === 0 ? t.slice(7) : t;
+        }
+        function modelBand(size) {
+          const n = Number(size) || 0;
+          if (n > 400 * 1024 * 1024) return "large";
+          if (n >= 200 * 1024 * 1024) return "standard";
+          return "compact";
+        }
+        function bandHint(band) {
+          if (band === "large") return " — higher capacity";
+          if (band === "compact") return " — lower capacity";
+          return "";
+        }
+        function unionModels(hostsList, pinHostId) {
+          const src = (hostsList || []).filter(function (h) {
+            return !pinHostId || h.hostId === pinHostId;
+          });
+          const by = {};
+          src.forEach(function (h) {
+            (h.models || []).forEach(function (m) {
+              const tag = m.tag || "";
+              if (!tag) return;
+              if (!by[tag] || (m.size || 0) > (by[tag].size || 0)) by[tag] = m;
+            });
+          });
+          return Object.keys(by).sort().map(function (k) { return by[k]; });
+        }
+        function modelOptionValue(tag) {
+          const t = String(tag || "");
+          return t.indexOf("ollama/") === 0 ? t : "ollama/" + t;
+        }
+        function modelOptionLabel(m) {
+          const band = modelBand(m.size);
+          const cap = band.charAt(0).toUpperCase() + band.slice(1);
+          return displayTag(m.tag) + " — " + cap + bandHint(band);
+        }
+        function sandboxModelLine(box) {
+          const shown = displayTag(box.modelRef);
+          const match = unionModels(hosts, "").find(function (m) {
+            return displayTag(m.tag) === shown;
+          });
+          if (!match) return shown;
+          const band = modelBand(match.size);
+          const cap = band.charAt(0).toUpperCase() + band.slice(1);
+          return shown + " — " + cap + bandHint(band);
+        }
+        function modelSelectHtml(selectedRef, pinHostId) {
+          const models = unionModels(hosts, pinHostId);
+          const empty = models.length === 0;
+          const values = models.map(function (m) { return modelOptionValue(m.tag); });
+          const keep = selectedRef && values.indexOf(selectedRef) !== -1 ? selectedRef : values[0] || "";
+          const opts = models.map(function (m) {
+            const val = modelOptionValue(m.tag);
+            return '<option value="' + esc(val) + '"' + (val === keep ? " selected" : "") + ">" +
+              esc(modelOptionLabel(m)) + "</option>";
+          }).join("");
+          return {
+            empty: empty,
+            html: '<select name="modelRef"' + (empty ? " disabled" : "") + ">" + opts + "</select>",
+          };
+        }
+        function fillCreateModels(keepValue) {
+          const form = document.getElementById("new-box");
+          if (!form) return;
+          const capSel = form.capacity;
+          const modelSel = form.modelRef;
+          const createBtn = form.querySelector('button[type="submit"]');
+          const pinHostId = !capSel || capSel.value === "pool" ? "" : capSel.value;
+          const models = unionModels(hosts, pinHostId);
+          const values = models.map(function (m) { return modelOptionValue(m.tag); });
+          modelSel.innerHTML = models.map(function (m) {
+            return '<option value="' + esc(modelOptionValue(m.tag)) + '">' +
+              esc(modelOptionLabel(m)) + "</option>";
+          }).join("");
+          modelSel.disabled = models.length === 0;
+          if (createBtn) createBtn.disabled = models.length === 0 || !sidecarOn;
+          if (models.length) {
+            modelSel.value = (keepValue && values.indexOf(keepValue) !== -1) ? keepValue : values[0];
+          }
+        }
+        const createModels = modelSelectHtml(state.modelRef, "");
+        const createDisabled = createModels.empty || !sidecarOn;
         const usersCol =
           '<section class="card">' +
             "<h2>People</h2>" +
@@ -1337,7 +1425,7 @@
                 "<div><h2>Live hosts</h2><p class=\"muted\">Hostname and Halcyon ID from each connected Host.</p></div>" +
                 capacityPill(health) +
               "</div>" +
-              '<table class="host-table"><thead><tr><th>Hostname</th><th>Host ID</th><th>Status</th></tr></thead><tbody>' +
+              '<table class="host-table"><thead><tr><th>Hostname</th><th>Host ID</th><th>Status</th><th></th></tr></thead><tbody>' +
               hostRows + "</tbody></table></section>" +
             '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1rem">' +
               "<h3>" + (selected ? ("Environments for " + esc(selected.name || selected.email)) : "Environments") + "</h3>" +
@@ -1358,7 +1446,7 @@
               return (
                 '<article class="card">' +
                   "<h2>" + esc(box.name) + "</h2>" +
-                  '<p class="muted">' + esc(box.modelRef) + "</p>" +
+                  '<p class="muted">' + esc(sandboxModelLine(box)) + "</p>" +
                   '<div class="field"><label>Capacity</label><select data-capacity="' + esc(box.sandboxId) + '">' +
                     pinOptions(pin) +
                   "</select></div>" +
@@ -1369,13 +1457,13 @@
             }).join("") +
             (sandboxes.length ? "" : '<article class="card"><p class="muted">No connections yet. Create one below.</p></article>') +
             '<section class="card">' +
-              "<h2>New connection</h2>" +
-              '<p class="muted">Creates an isolated environment on the connected capacity.</p>' +
+              "<h2>New Sandbox</h2>" +
+              '<p class="muted">Creates an isolated environment. Not a host.</p>' +
               '<form id="new-box">' +
                 '<div class="field"><label>Name</label><input name="name" required value="' + esc(state.name) + '" /></div>' +
-                '<div class="field"><label>Model</label><input name="modelRef" required value="' + esc(state.modelRef) + '" /></div>' +
+                '<div class="field"><label>Model</label>' + createModels.html + "</div>" +
                 '<div class="field"><label>Capacity</label><select name="capacity">' + pinOptions("pool") + "</select></div>" +
-                '<button class="accent" type="submit"' + (sidecarOn ? "" : " disabled") + ">Create</button>" +
+                '<button class="accent" type="submit"' + (createDisabled ? " disabled" : "") + ">Create</button>" +
               "</form>" +
             "</section>" +
           "</div>";
@@ -1454,7 +1542,46 @@
             }
           };
         });
-        document.getElementById("new-box").onsubmit = async (event) => {
+        app.querySelectorAll("[data-host-revoke]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              await api("/api/admin/hosts/" + encodeURIComponent(btn.getAttribute("data-host-revoke")) + "/token", {
+                method: "DELETE",
+              });
+              state.error = "";
+              state.payload = null;
+              state.force = true;
+              await renderAdmin(state);
+            } catch (err) {
+              state.error = err.message;
+              await renderAdmin(state);
+            }
+          };
+        });
+        app.querySelectorAll("[data-host-token]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              const minted = await api("/api/admin/hosts/" + encodeURIComponent(btn.getAttribute("data-host-token")) + "/token", {
+                method: "POST",
+                body: JSON.stringify({ hostname: btn.getAttribute("data-host-name") || "host" }),
+              });
+              const token = minted.hostSidecarToken || "";
+              if (navigator.clipboard && token) {
+                await navigator.clipboard.writeText(token);
+              }
+              window.alert(token ? ("Copied host token once. It will not be shown again.\n" + token) : "Token minted.");
+              state.error = "";
+            } catch (err) {
+              state.error = err.message;
+              await renderAdmin(state);
+            }
+          };
+        });
+        const newBoxForm = document.getElementById("new-box");
+        newBoxForm.capacity.onchange = function () {
+          fillCreateModels(newBoxForm.modelRef.value);
+        };
+        newBoxForm.onsubmit = async (event) => {
           event.preventDefault();
           const form = event.target;
           try {
