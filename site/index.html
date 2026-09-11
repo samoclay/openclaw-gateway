@@ -1295,7 +1295,12 @@
           : '<tr><td colspan="3" class="muted">No live hosts yet. Connect Halcyon Host; they appear as hostname + Halcyon ID.</td></tr>';
         function pinOptions(selected) {
           const cur = selected || "pool";
+          const liveIds = hosts.map(function (h) { return h.hostId || ""; });
+          const offline = (cur !== "pool" && liveIds.indexOf(cur) === -1)
+            ? '<option value="' + esc(cur) + '" selected>Pin — offline (' + esc(cur) + ")</option>"
+            : "";
           return '<option value="pool"' + (cur === "pool" ? " selected" : "") + ">Pool — any connected host</option>" +
+            offline +
             hosts.map(function (h) {
               const id = h.hostId || "";
               return '<option value="' + esc(id) + '"' + (cur === id ? " selected" : "") + ">Pin — " +
@@ -1349,13 +1354,13 @@
                     ? '<button class="ghost" data-revoke="' + esc(box.sandboxId) + '">Revoke</button>'
                     : '<button class="accent" data-grant="' + esc(box.sandboxId) + '">Grant</button>')
                 : '<p class="muted">Select a person.</p>';
-              const pin = box.pinnedHostId || box.capacityMode || "pool";
+              const pin = box.capacityMode === "pin" ? (box.pinnedHostId || "") : "pool";
               return (
                 '<article class="card">' +
                   "<h2>" + esc(box.name) + "</h2>" +
                   '<p class="muted">' + esc(box.modelRef) + "</p>" +
                   '<div class="field"><label>Capacity</label><select data-capacity="' + esc(box.sandboxId) + '">' +
-                    pinOptions(pin === "pin" ? (box.pinnedHostId || "pool") : pin) +
+                    pinOptions(pin) +
                   "</select></div>" +
                   '<div class="chips">' + (chips || '<span class="chip">No members</span>') + "</div>" +
                   '<div class="actions">' + actions + "</div>" +
