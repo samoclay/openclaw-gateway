@@ -1,4 +1,4 @@
-# Release v0.1.1-rc.5
+# Release v0.1.1-rc.6
 
 Date: 2026-09-11
 
@@ -6,6 +6,6 @@ GitHub prerelease (staging).
 
 ## This release
 
-- Promote the staging SPA to CloudFront on each Publish run.
+- Promote staging and production SPAs on their own branches.
 
-## OpenClaw portal 0.1.1-rc.5
+## OpenClaw portal 0.1.1-rc.6
