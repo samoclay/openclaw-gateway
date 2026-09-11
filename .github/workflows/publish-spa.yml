@@ -1,7 +1,10 @@
 # Publish hosted-SPA artifacts (site/index.html, not the Next.js BFF).
-# Merge to staging → immutable spa/<git-sha>/ then copy to the live site
-# bucket and invalidate CloudFront (no terraform pin PR required).
-# Merge to master/main still uploads artifacts only unless SITE_BUCKET is set.
+#
+# Promote path: merge to staging → live staging-portal. Merge staging into
+# master → production artifacts (and live portal.halcyonlabs.uk only when
+# Environment production has SITE_BUCKET + CLOUDFRONT_DISTRIBUTION_ID).
+# Never copy the staging site bucket or CloudFront id onto production.
+# Terraform pins stay separate: staging.tfvars vs production.tfvars.
 #
 # Do NOT set AWS_ROLE_ARN in workflow/job env — the AWS SDK treats that as
 # web-identity config and fails before OIDC exchange.
@@ -105,8 +108,8 @@ jobs:
             --checksum-algorithm SHA256
           echo "Published ${prefix}/"
 
-      - name: Promote SPA to the live staging site
-        if: github.ref_name == 'staging' && steps.cfg.outputs.s3 == '1'
+      - name: Promote SPA to the live CloudFront origin
+        if: steps.cfg.outputs.s3 == '1'
         env:
           ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
           SITE_BUCKET: ${{ vars.SITE_BUCKET }}
@@ -114,40 +117,59 @@ jobs:
         run: |
           set -euo pipefail
           site="${SITE_BUCKET:-}"
-          if [ -z "$site" ]; then
-            site="${ARTIFACTS_BUCKET/-artifacts-/-}"
+          dist="${CLOUDFRONT_DISTRIBUTION_ID:-}"
+          if [ "$GITHUB_REF_NAME" = "staging" ]; then
+            if [ -z "$site" ]; then
+              site="${ARTIFACTS_BUCKET/-artifacts-/-}"
+            fi
+            dist="${dist:-E2PGUES7KEVWW0}"
+          elif [ -z "$site" ] || [ -z "$dist" ]; then
+            echo "Production artifacts are at s3://${ARTIFACTS_BUCKET}/spa/${GITHUB_SHA}/. Live portal.halcyonlabs.uk is unchanged until Environment production has SITE_BUCKET and CLOUDFRONT_DISTRIBUTION_ID (do not reuse staging values)."
+            exit 0
           fi
-          dist="${CLOUDFRONT_DISTRIBUTION_ID:-E2PGUES7KEVWW0}"
+          case "$site" in *staging*)
+            if [ "$GITHUB_REF_NAME" != "staging" ]; then
+              echo "::error::Refusing to write a staging site bucket from $GITHUB_REF_NAME."
+              exit 1
+            fi
+            ;;
+          esac
           aws s3 cp "s3://${ARTIFACTS_BUCKET}/spa/${GITHUB_SHA}/index.html" "s3://${site}/index.html" \
             --content-type "text/html; charset=utf-8" \
             --checksum-algorithm SHA256
           aws cloudfront create-invalidation --distribution-id "$dist" --paths /index.html /
-          echo "Live staging site updated from spa/${GITHUB_SHA} bucket=${site} dist=${dist}"
+          echo "Live site updated from spa/${GITHUB_SHA} bucket=${site} dist=${dist} ref=${GITHUB_REF_NAME}"
 
-      - name: Open or update sam-terraform staging pin PR
-        if: github.ref_name == 'staging' && steps.cfg.outputs.s3 == '1'
+      - name: Record SPA pin in the matching terraform tfvars
+        if: steps.cfg.outputs.s3 == '1'
         env:
           GH_TOKEN: ${{ secrets.SAM_TERRAFORM_TOKEN }}
           SPA_SHA: ${{ github.sha }}
           TF_REPO: samoclay/sam-terraform
-          PIN_BRANCH: bots/openclaw-spa-pin
           BASE_BRANCH: main
         run: |
           set -euo pipefail
           if [ -z "${GH_TOKEN:-}" ]; then
-            echo "::warning::SPA uploaded but SAM_TERRAFORM_TOKEN is unset; skipped sam-terraform pin PR."
+            echo "SAM_TERRAFORM_TOKEN unset; live site (if promoted) does not need the pin PR."
             exit 0
           fi
-          # gh clone uses GH_TOKEN; raw git push does not unless the helper is installed.
+          if [ "$GITHUB_REF_NAME" = "staging" ]; then
+            tfvars=envs/staging/staging.tfvars
+            pin_branch=bots/openclaw-spa-pin-staging
+            env_label=staging
+          else
+            tfvars=envs/production/production.tfvars
+            pin_branch=bots/openclaw-spa-pin-production
+            env_label=production
+          fi
           gh auth setup-git
           tmp=$(mktemp -d)
           gh repo clone "$TF_REPO" "$tmp" -- --branch "$BASE_BRANCH" --depth 1
           cd "$tmp"
           git config user.name "openclaw-publish[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B "$PIN_BRANCH"
+          git checkout -B "$pin_branch"
 
-          tfvars=envs/staging/staging.tfvars
           if [[ ! -f "$tfvars" ]]; then
             echo "::error::$tfvars missing on $BASE_BRANCH."
             exit 1
@@ -162,22 +184,20 @@ jobs:
           rm -f "${tfvars}.bak"
 
           if git diff --quiet; then
-            echo "Pin already at $SPA_SHA; nothing to do"
+            echo "Pin already at $SPA_SHA in $tfvars"
             exit 0
           fi
 
-          body="Auto-opened by openclaw Publish after uploading spa/$SPA_SHA/ to the staging artifacts bucket. Merge into main to apply staging. Source: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          body="Record-only pin for ${env_label} after spa/${SPA_SHA}/. Does not change the other env. Live site is updated by Publish, not by this PR. Source: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           git add "$tfvars"
-          git commit -m "chore(openclaw): pin spa ${SPA_SHA:0:12} for staging"
-          git push -u origin "$PIN_BRANCH" --force
+          git commit -m "chore(openclaw): pin spa ${SPA_SHA:0:12} for ${env_label}"
+          git push -u origin "$pin_branch" --force
 
-          title="chore(openclaw): pin SPA ${SPA_SHA:0:12} (staging)"
-          if gh pr view "$PIN_BRANCH" --repo "$TF_REPO" --json number -q .number >/dev/null 2>&1; then
-            gh pr edit "$PIN_BRANCH" --repo "$TF_REPO" --title "$title" --body "$body"
-            echo "Updated existing pin PR for $SPA_SHA"
+          title="chore(openclaw): pin SPA ${SPA_SHA:0:12} (${env_label})"
+          if gh pr view "$pin_branch" --repo "$TF_REPO" --json number -q .number >/dev/null 2>&1; then
+            gh pr edit "$pin_branch" --repo "$TF_REPO" --title "$title" --body "$body"
           else
-            gh pr create --repo "$TF_REPO" --base "$BASE_BRANCH" --head "$PIN_BRANCH" \
+            gh pr create --repo "$TF_REPO" --base "$BASE_BRANCH" --head "$pin_branch" \
               --title "$title" --body "$body"
-            echo "Opened pin PR for $SPA_SHA"
           fi
