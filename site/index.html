@@ -342,6 +342,7 @@
     }
     .composer {
       display: flex;
+      flex-wrap: wrap;
       align-items: flex-end;
       gap: 0.65rem;
       padding: 1.1rem 1.15rem;
@@ -656,19 +657,27 @@
 
     async function api(path, options) {
       const t = tokens();
-      const res = await fetch(path, {
-        ...options,
-        headers: {
-          authorization: "Bearer " + (t && t.id_token ? t.id_token : ""),
-          "content-type": "application/json",
-          ...(options && options.headers),
-        },
-      });
-      const data = await res.json().catch(() => ({}));
+      async function once() {
+        return fetch(path, {
+          ...options,
+          headers: {
+            authorization: "Bearer " + (t && t.id_token ? t.id_token : ""),
+            "content-type": "application/json",
+            ...(options && options.headers),
+          },
+        });
+      }
+      let res = await once();
+      if (res.status === 503) {
+        res = await once();
+      }
+      const raw = await res.text();
+      let data = {};
+      try { data = raw ? JSON.parse(raw) : {}; } catch { data = {}; }
       if (!res.ok) {
         const msg = data.title && data.detail
           ? (data.title + " — " + data.detail)
-          : (data.error || data.message || ("HTTP " + res.status));
+          : (data.error || data.message || (raw && raw.slice(0, 80)) || ("HTTP " + res.status));
         throw new Error(msg);
       }
       return data;
@@ -920,7 +929,7 @@
         roles: roles,
         selected: "default",
         mention: "",
-        threadId: sessionStorage.getItem("halcyon_thread_" + current.sandboxId) || "",
+        threadId: "",
         bubbles: [],
         pending: false,
         running: "",
@@ -929,53 +938,171 @@
         persist: false,
       };
 
-      async function roomStore() {
-        return new Promise((resolve, reject) => {
-          const req = indexedDB.open("halcyon-workspace", 1);
-          req.onupgradeneeded = () => req.result.createObjectStore("rooms");
-          req.onsuccess = () => resolve(req.result);
-          req.onerror = () => reject(req.error);
-        });
-      }
-
-      function roomKeyName() {
+      function cognitoSub() {
         const t = tokens();
         let sub = "anon";
         try {
           const payload = JSON.parse(atob(t.id_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
           sub = payload.sub || "anon";
         } catch { /* ignore */ }
-        return sub + ":" + current.sandboxId + ":" + (state.threadId || "none");
+        return sub;
       }
 
-      async function loadBubbles() {
-        if (!state.threadId) return;
+      function roleIdOf(roleId) {
+        return roleId || state.selected || "default";
+      }
+
+      function selectedRole() {
+        return roles.find((row) => row.roleId === state.selected) || roles[0];
+      }
+
+      function threadStorageKey(roleId) {
+        return "halcyon_thread_" + current.sandboxId + "_" + roleIdOf(roleId);
+      }
+
+      function roomKeyName(roleId) {
+        return cognitoSub() + ":" + current.sandboxId + ":" + roleIdOf(roleId);
+      }
+
+      function readThread(roleId) {
+        try { return sessionStorage.getItem(threadStorageKey(roleId)) || ""; }
+        catch { return ""; }
+      }
+
+      function writeThread(roleId, threadId) {
+        try {
+          const key = threadStorageKey(roleId);
+          if (threadId) sessionStorage.setItem(key, threadId);
+          else sessionStorage.removeItem(key);
+        } catch { /* ignore */ }
+      }
+
+      function idbReq(req) {
+        return new Promise((resolve, reject) => {
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      function canPersistHistory() {
+        return !!(window.indexedDB && window.crypto && crypto.subtle);
+      }
+
+      async function roomStore() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open("halcyon-workspace", 2);
+          req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains("rooms")) db.createObjectStore("rooms");
+            if (!db.objectStoreNames.contains("keys")) db.createObjectStore("keys");
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      async function historyKey() {
+        const db = await roomStore();
+        const name = "dek:" + cognitoSub();
+        const existing = await idbReq(db.transaction("keys").objectStore("keys").get(name));
+        if (existing) return existing;
+        const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+        await idbReq(db.transaction("keys", "readwrite").objectStore("keys").put(key, name));
+        return key;
+      }
+
+      async function encryptBubbles(bubbles) {
+        const key = await historyKey();
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const packed = await crypto.subtle.encrypt(
+          { name: "AES-GCM", iv: iv },
+          key,
+          new TextEncoder().encode(JSON.stringify(bubbles)),
+        );
+        return { iv: Array.from(iv), ciphertext: Array.from(new Uint8Array(packed)) };
+      }
+
+      async function decryptBubbles(row) {
+        if (!row || !row.iv || !row.ciphertext) return null;
+        const key = await historyKey();
+        const raw = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv: new Uint8Array(row.iv) },
+          key,
+          new Uint8Array(row.ciphertext),
+        );
+        const parsed = JSON.parse(new TextDecoder().decode(raw));
+        return Array.isArray(parsed) ? parsed : null;
+      }
+
+      async function dropPlaintextRooms(db) {
+        const tx = db.transaction("rooms", "readwrite");
+        const store = tx.objectStore("rooms");
+        const keys = await idbReq(store.getAllKeys());
+        const prefix = cognitoSub() + ":" + current.sandboxId + ":";
+        for (const key of keys || []) {
+          if (String(key).indexOf(prefix) !== 0) continue;
+          const row = await idbReq(store.get(key));
+          if (row && row.bubbles && !row.ciphertext) await idbReq(store.delete(key));
+        }
+      }
+
+      async function loadRoom(roleId) {
+        state.threadId = readThread(roleId);
+        state.hop = null;
+        state.bubbles = [];
+        if (!canPersistHistory()) {
+          state.note = "History will not be saved on this device. Live chat continues in memory.";
+          return;
+        }
         try {
           const db = await roomStore();
-          const row = await new Promise((resolve, reject) => {
-            const tx = db.transaction("rooms").objectStore("rooms").get(roomKeyName());
-            tx.onsuccess = () => resolve(tx.result);
-            tx.onerror = () => reject(tx.error);
-          });
-          if (row && Array.isArray(row.bubbles)) state.bubbles = row.bubbles;
+          await dropPlaintextRooms(db);
+          const row = await idbReq(db.transaction("rooms").objectStore("rooms").get(roomKeyName(roleId)));
+          const bubbles = await decryptBubbles(row);
+          if (bubbles) state.bubbles = bubbles;
         } catch {
           state.note = "History will not be saved on this device. Live chat continues in memory.";
         }
       }
 
-      async function saveBubbles() {
-        if (!state.threadId) return;
+      async function saveRoom(roleId) {
+        if (!canPersistHistory()) return;
         try {
           const db = await roomStore();
-          await new Promise((resolve, reject) => {
-            const tx = db.transaction("rooms", "readwrite").objectStore("rooms").put(
-              { bubbles: state.bubbles },
-              roomKeyName(),
-            );
-            tx.onsuccess = () => resolve();
-            tx.onerror = () => reject(tx.error);
-          });
+          const sealed = await encryptBubbles(state.bubbles);
+          await idbReq(db.transaction("rooms", "readwrite").objectStore("rooms").put(sealed, roomKeyName(roleId)));
         } catch { /* memory only */ }
+      }
+
+      async function switchRole(nextRoleId) {
+        if (!nextRoleId || nextRoleId === state.selected || state.pending) return;
+        await saveRoom(state.selected);
+        writeThread(state.selected, state.threadId);
+        state.selected = nextRoleId;
+        await loadRoom(nextRoleId);
+        await paint();
+      }
+
+      async function clearHistory() {
+        if (!window.confirm("Clear all agent history on this device for this environment?")) return;
+        if (canPersistHistory()) {
+          try {
+            const db = await roomStore();
+            const tx = db.transaction("rooms", "readwrite");
+            const store = tx.objectStore("rooms");
+            const keys = await idbReq(store.getAllKeys());
+            const prefix = cognitoSub() + ":" + current.sandboxId + ":";
+            for (const key of keys || []) {
+              if (String(key).indexOf(prefix) === 0) await idbReq(store.delete(key));
+            }
+          } catch { /* ignore */ }
+        }
+        roles.forEach((role) => writeThread(role.roleId, ""));
+        try { sessionStorage.removeItem("halcyon_thread_" + current.sandboxId); } catch { /* ignore */ }
+        state.threadId = "";
+        state.hop = null;
+        state.bubbles = [];
+        await paint();
       }
       async function paint() {
         const switcher = list.length > 1
@@ -991,7 +1118,8 @@
             "<span><strong>" + esc(role.displayName) + "</strong><small>" +
             (state.running === role.roleId ? "Running" : "Idle") + "</small></span></button>"
         ).join("");
-        const bubbles = (state.bubbles.length ? state.bubbles : [{ role: "system", text: "Ask this crew. Use @Name to hand off to another agent." }]).map((row) => {
+        const emptyName = (selectedRole() && selectedRole().displayName) || "this agent";
+        const bubbles = (state.bubbles.length ? state.bubbles : [{ role: "system", text: "No messages with " + emptyName + " yet." }]).map((row) => {
           const running = row.roleId && state.running === row.roleId && row.role !== "you";
           return '<article class="bubble' + (row.err ? " err-card" : "") + '"><header>' +
             (row.role === "you" ? "" : sunHtml(!!running)) +
@@ -1013,6 +1141,7 @@
                 '<textarea id="msg" rows="1" placeholder="Message this crew… @Name to hand off" ' + (sidecarOn && !state.pending ? "" : "disabled") + "></textarea>" +
                 '<button class="accent" type="submit"' + (sidecarOn && !state.pending ? "" : " disabled") + ">Send</button>" +
                 '<button class="ghost" type="button" id="new-thread">New thread</button>' +
+                '<button class="ghost" type="button" id="clear-history">Clear history</button>' +
               "</form></section>" +
           "</div>",
           { title: current.name || "Workspace", sub: (me && me.email ? me.email : "") + " — crew room", wide: true, health: health },
@@ -1023,15 +1152,17 @@
           renderWorkspace(list);
         };
         app.querySelectorAll("[data-role]").forEach((btn) => {
-          btn.onclick = () => { state.selected = btn.getAttribute("data-role"); paint(); };
+          btn.onclick = () => { switchRole(btn.getAttribute("data-role")); };
         });
-        document.getElementById("new-thread").onclick = () => {
+        document.getElementById("new-thread").onclick = async () => {
           state.threadId = "";
           state.hop = null;
           state.bubbles = [];
-          sessionStorage.removeItem("halcyon_thread_" + current.sandboxId);
+          writeThread(state.selected, "");
+          await saveRoom(state.selected);
           paint();
         };
+        document.getElementById("clear-history").onclick = () => { clearHistory(); };
         document.getElementById("add-role").onsubmit = async (event) => {
           event.preventDefault();
           const name = event.target.name.value.trim();
@@ -1094,7 +1225,7 @@
           state.hop = null;
         }
         state.threadId = assigned.threadId;
-        sessionStorage.setItem("halcyon_thread_" + current.sandboxId, assigned.threadId);
+        writeThread(state.selected, assigned.threadId);
         if (state.hop) return state.hop;
         if (!assigned.pubKey) throw Object.assign(new Error("crypto"), {
           title: "Could not start a private session",
@@ -1165,13 +1296,14 @@
             if (msg.type === "ack" && msg.threadId) {
               if (state.threadId && state.threadId !== msg.threadId) state.hop = null;
               state.threadId = msg.threadId;
-              sessionStorage.setItem("halcyon_thread_" + current.sandboxId, msg.threadId);
+              writeThread(state.selected, msg.threadId);
             }
             if (msg.type === "error") {
               state.pending = false;
               state.running = "";
               state.bubbles.push({ role: "error", label: "Error", text: (msg.title || msg.error || "") + " — " + (msg.detail || ""), err: true });
               ws.close();
+              saveRoom(state.selected);
               paint();
               return;
             }
@@ -1207,7 +1339,7 @@
               state.running = "";
               state.pending = false;
               ws.close();
-              saveBubbles();
+              saveRoom(state.selected);
               paint();
             }
           };
@@ -1215,16 +1347,13 @@
           state.pending = false;
           state.running = "";
           state.bubbles.push({ role: "error", label: "Error", text: formatChainError(err).replace(/<[^>]+>/g, " "), err: true });
+          saveRoom(state.selected);
           paint();
         }
       }
 
       try {
-        if (!window.indexedDB) {
-          state.note = "History will not be saved on this device. Live chat continues in memory.";
-        } else {
-          await loadBubbles();
-        }
+        await loadRoom(state.selected);
       } catch { /* ignore */ }
       await paint();
     }
@@ -1245,18 +1374,16 @@
       if (state.force || !state.payload) {
         shell('<p class="muted">Loading directory…</p>', { title: "Access", sub: "Grant isolated environments to signed-in clients", wide: true });
         try {
-          const [clientsRes, sandboxesRes, health, hostsRes] = await Promise.all([
-            api("/api/admin/clients"),
-            api("/api/admin/sandboxes"),
-            api("/api/health").catch(() => ({ sidecar: false })),
-            api("/api/admin/hosts").catch(() => null),
-          ]);
+          const health = await api("/api/health").catch(() => ({ sidecar: false }));
+          const hostsRes = await api("/api/admin/hosts").catch(() => null);
+          const clientsRes = await api("/api/admin/clients");
+          const sandboxesRes = await api("/api/admin/sandboxes");
           const sandboxes = sandboxesRes.sandboxes || [];
           const membersBySandbox = {};
-          await Promise.all(sandboxes.map(async (box) => {
+          for (const box of sandboxes) {
             const data = await api("/api/admin/sandboxes/" + encodeURIComponent(box.sandboxId) + "/members");
             membersBySandbox[box.sandboxId] = data.members || [];
-          }));
+          }
           state.payload = {
             clients: clientsRes.clients || [],
             sandboxes: sandboxes,

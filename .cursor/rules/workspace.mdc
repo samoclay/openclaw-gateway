@@ -11,7 +11,7 @@ Customers chat at `#/workspace` (also `#/` when they have a sandbox). Insights i
 - Gold-on-black tokens (website `:root`). Running agents: spinning Halcyon sun (splash O + Saturn rings). Reduced motion: pulse, no rotate.
 - Browser → Lambda → sidecar is **sealed** (X25519 + AES-256-GCM). Lambda copies `sealed`; it must not decrypt.
 - Clients cannot set `agentId`, `model`, `sessionKey`, `tenantId`. `@mention` and roster display names set `mentionRoleId` (resolved server-side). Roles created before the last-16 agent slug may share the default OpenClaw id — recreate the role after Lambda pin, or the sidecar labels the default agent as that role.
-- Transcripts: passkey-wrapped IndexedDB on this device, or memory-only. Never Dynamo.
+- Transcripts: AES-GCM in this browser’s IndexedDB, keyed by Cognito `sub` + sandbox + agent, or memory-only. Never Dynamo. Clear history wipes every agent room for that sandbox on this device.
 - No sandbox → Sample Insights only; do not open WebSocket.
 - Errors: `{ code, stage, title, detail }` from `@halcyon/core` workspace-errors. Name the chain stage.
 
