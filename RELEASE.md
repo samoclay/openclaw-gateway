@@ -1,4 +1,4 @@
-# Release v0.1.1-rc.1
+# Release v0.1.1-rc.2
 
 Date: 2026-09-11
 
@@ -6,6 +6,6 @@ GitHub prerelease (staging).
 
 ## This release
 
-- Merge pull request #34 from samoclay/feature/semantic-versioning
+- Ship Superdesign portal chrome to staging.
 
-## OpenClaw portal 0.1.1-rc.1
+## OpenClaw portal 0.1.1-rc.2
