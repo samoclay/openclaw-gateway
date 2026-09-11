@@ -1,4 +1,4 @@
-# Release v0.1.1-rc.6
+# Release v0.1.1-rc.7
 
 Date: 2026-09-11
 
@@ -6,6 +6,6 @@ GitHub prerelease (staging).
 
 ## This release
 
-- Promote staging and production SPAs on their own branches.
+- Merge pull request #38 from samoclay/feature/docs
 
-## OpenClaw portal 0.1.1-rc.6
+## OpenClaw portal 0.1.1-rc.7

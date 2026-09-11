@@ -4,6 +4,8 @@ All notable changes to the OpenClaw portal and contract are documented in this f
 
 ## [Unreleased]
 
+## [0.1.1-rc.7] - 2026-09-11
+- Merge pull request #38 from samoclay/feature/docs
 ## [0.1.1-rc.6] - 2026-09-11
 - Promote staging and production SPAs on their own branches.
 ## [0.1.1-rc.5] - 2026-09-11
