@@ -1289,10 +1289,14 @@
         const hosts = Array.isArray(state.payload.hosts) ? state.payload.hosts : [];
         const hostRows = hosts.length
           ? hosts.map(function (h) {
-              return "<tr><td>" + esc(h.hostname || "—") + "</td><td>" + esc(h.hostId || "") +
-                "</td><td><span class=\"pill on\">Online</span></td></tr>";
+              const id = h.hostId || "";
+              return "<tr><td>" + esc(h.hostname || "—") + "</td><td>" + esc(id) +
+                "</td><td><span class=\"pill on\">Online</span></td><td class=\"actions\">" +
+                '<button type="button" class="ghost" data-host-token="' + esc(id) + '" data-host-name="' +
+                esc(h.hostname || "host") + '">New token</button> ' +
+                '<button type="button" class="ghost" data-host-revoke="' + esc(id) + '">Revoke</button></td></tr>';
             }).join("")
-          : '<tr><td colspan="3" class="muted">No live hosts yet. Connect Halcyon Host; they appear as hostname + Halcyon ID.</td></tr>';
+          : '<tr><td colspan="4" class="muted">No live hosts yet. Connect Halcyon Host; they appear as hostname + Halcyon ID.</td></tr>';
         function pinOptions(selected) {
           const cur = selected || "pool";
           const liveIds = hosts.map(function (h) { return h.hostId || ""; });
@@ -1421,7 +1425,7 @@
                 "<div><h2>Live hosts</h2><p class=\"muted\">Hostname and Halcyon ID from each connected Host.</p></div>" +
                 capacityPill(health) +
               "</div>" +
-              '<table class="host-table"><thead><tr><th>Hostname</th><th>Host ID</th><th>Status</th></tr></thead><tbody>' +
+              '<table class="host-table"><thead><tr><th>Hostname</th><th>Host ID</th><th>Status</th><th></th></tr></thead><tbody>' +
               hostRows + "</tbody></table></section>" +
             '<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1rem">' +
               "<h3>" + (selected ? ("Environments for " + esc(selected.name || selected.email)) : "Environments") + "</h3>" +
@@ -1532,6 +1536,41 @@
               state.payload = null;
               state.force = true;
               await renderAdmin(state);
+            } catch (err) {
+              state.error = err.message;
+              await renderAdmin(state);
+            }
+          };
+        });
+        app.querySelectorAll("[data-host-revoke]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              await api("/api/admin/hosts/" + encodeURIComponent(btn.getAttribute("data-host-revoke")) + "/token", {
+                method: "DELETE",
+              });
+              state.error = "";
+              state.payload = null;
+              state.force = true;
+              await renderAdmin(state);
+            } catch (err) {
+              state.error = err.message;
+              await renderAdmin(state);
+            }
+          };
+        });
+        app.querySelectorAll("[data-host-token]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              const minted = await api("/api/admin/hosts/" + encodeURIComponent(btn.getAttribute("data-host-token")) + "/token", {
+                method: "POST",
+                body: JSON.stringify({ hostname: btn.getAttribute("data-host-name") || "host" }),
+              });
+              const token = minted.hostSidecarToken || "";
+              if (navigator.clipboard && token) {
+                await navigator.clipboard.writeText(token);
+              }
+              window.alert(token ? ("Copied host token once. It will not be shown again.\n" + token) : "Token minted.");
+              state.error = "";
             } catch (err) {
               state.error = err.message;
               await renderAdmin(state);
