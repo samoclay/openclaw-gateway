@@ -1,6 +1,7 @@
 # Publish hosted-SPA artifacts (site/index.html, not the Next.js BFF).
-# Merge to staging/master → S3 spa/<git-sha>/ (required on staging).
-# Terraform pins the git SHA via openclaw_spa_version (S3 key spa/<sha>/).
+# Merge to staging → immutable spa/<git-sha>/ then copy to the live site
+# bucket and invalidate CloudFront (no terraform pin PR required).
+# Merge to master/main still uploads artifacts only unless SITE_BUCKET is set.
 #
 # Do NOT set AWS_ROLE_ARN in workflow/job env — the AWS SDK treats that as
 # web-identity config and fails before OIDC exchange.
@@ -102,7 +103,26 @@ jobs:
           aws s3 cp dist/spa/manifest.json "${prefix}/manifest.json" \
             --content-type "application/json" \
             --checksum-algorithm SHA256
-          echo "Published ${prefix}/  pin openclaw_spa_version = ${GITHUB_SHA}"
+          echo "Published ${prefix}/"
+
+      - name: Promote SPA to the live staging site
+        if: github.ref_name == 'staging' && steps.cfg.outputs.s3 == '1'
+        env:
+          ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
+          SITE_BUCKET: ${{ vars.SITE_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          set -euo pipefail
+          site="${SITE_BUCKET:-}"
+          if [ -z "$site" ]; then
+            site="${ARTIFACTS_BUCKET/-artifacts-/-}"
+          fi
+          dist="${CLOUDFRONT_DISTRIBUTION_ID:-E2PGUES7KEVWW0}"
+          aws s3 cp "s3://${ARTIFACTS_BUCKET}/spa/${GITHUB_SHA}/index.html" "s3://${site}/index.html" \
+            --content-type "text/html; charset=utf-8" \
+            --checksum-algorithm SHA256
+          aws cloudfront create-invalidation --distribution-id "$dist" --paths /index.html /
+          echo "Live staging site updated from spa/${GITHUB_SHA} bucket=${site} dist=${dist}"
 
       - name: Open or update sam-terraform staging pin PR
         if: github.ref_name == 'staging' && steps.cfg.outputs.s3 == '1'
