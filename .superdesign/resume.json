@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "#/workspace": {
+      "targetKind": "existing-ui",
+      "projectId": "7006f18a-ef6e-4aea-9234-48cf3222e129",
+      "baselineDraftId": "5238a4a5-d92a-4e32-b0b1-f5b06d7205ac",
+      "activeDraftId": "97ebdabd-9c2e-4bef-8c13-e92cba6fb140",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "site/index.html:7:370",
+        "site/index.html:750:820",
+        "site/index.html:980:1020"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "0d31781b5f2923bf076d6d946625ee6c9d0c34850b2b9a4697f43f1ec45777ca",
+        ".superdesign/init/theme.md": "82f3f32cc89aaeda7cab9b999d9156f5f14641a830470ba62338c66f5d2896ba",
+        "site/index.html": "822ef1645676183eb69fb21cfe871a3573cdc17522cbb0b0481ee25bc63a58a9"
+      },
+      "components": [
+        {
+          "name": "PortalNav",
+          "id": "b37c0738-8f7a-469c-94aa-35cf0343f7c7",
+          "sourcePath": "site/index.html"
+        }
+      ],
+      "updatedAt": "2026-09-11T16:10:00Z"
+    },
+    "#/insights": {
+      "targetKind": "existing-ui",
+      "projectId": "7006f18a-ef6e-4aea-9234-48cf3222e129",
+      "baselineDraftId": "ebdaf1e5-a805-4bb0-ab5c-68effa209cee",
+      "activeDraftId": "ebdaf1e5-a805-4bb0-ab5c-68effa209cee",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "site/index.html:7:370",
+        "site/index.html:775:820"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "0d31781b5f2923bf076d6d946625ee6c9d0c34850b2b9a4697f43f1ec45777ca",
+        ".superdesign/init/theme.md": "82f3f32cc89aaeda7cab9b999d9156f5f14641a830470ba62338c66f5d2896ba",
+        "site/index.html": "822ef1645676183eb69fb21cfe871a3573cdc17522cbb0b0481ee25bc63a58a9"
+      },
+      "updatedAt": "2026-09-11T16:10:00Z"
+    },
+    "#/admin": {
+      "targetKind": "existing-ui",
+      "projectId": "7006f18a-ef6e-4aea-9234-48cf3222e129",
+      "baselineDraftId": "ffe108e5-36a1-400d-8749-52b5662ede6e",
+      "activeDraftId": "c035b94d-8a62-428d-8f8f-c7cd8e7f3438",
+      "designSystemPath": ".superdesign/design-system.md",
+      "contextFiles": [
+        ".superdesign/design-system.md",
+        ".superdesign/init/theme.md",
+        "site/index.html:7:370",
+        "site/index.html:1195:1330"
+      ],
+      "fingerprints": {
+        ".superdesign/design-system.md": "0d31781b5f2923bf076d6d946625ee6c9d0c34850b2b9a4697f43f1ec45777ca",
+        ".superdesign/init/theme.md": "82f3f32cc89aaeda7cab9b999d9156f5f14641a830470ba62338c66f5d2896ba",
+        "site/index.html": "822ef1645676183eb69fb21cfe871a3573cdc17522cbb0b0481ee25bc63a58a9"
+      },
+      "updatedAt": "2026-09-11T16:10:00Z"
+    }
+  }
+}
