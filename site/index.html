@@ -1112,12 +1112,49 @@
               esc(row.name) + "</option>"
             ).join("") + "</select></div>"
           : "";
-        const rosterHtml = roles.map((role) =>
-          '<button type="button" class="agent-box' + (state.selected === role.roleId ? " sel" : "") + '" data-role="' + esc(role.roleId) + '">' +
+        const rosterHtml = roles.map((role) => {
+          const locked = !!role.systemRole || role.roleId === "cortana" || role.roleId === "optimiser" || role.roleId === "default";
+          const modelLine = String(role.modelRef || current.modelRef || "").replace(/^ollama\//, "");
+          return '<button type="button" class="agent-box' + (state.selected === role.roleId ? " sel" : "") + '" data-role="' + esc(role.roleId) + '">' +
             sunHtml(state.running === role.roleId) +
             "<span><strong>" + esc(role.displayName) + "</strong><small>" +
-            (state.running === role.roleId ? "Running" : "Idle") + "</small></span></button>"
-        ).join("");
+            (locked ? "System · " : "") +
+            (state.running === role.roleId ? "Running" : "Idle") +
+            (modelLine ? " · " + esc(modelLine) : "") +
+            "</small></span></button>";
+        }).join("");
+        const liveHosts = Array.isArray(health.hosts) ? health.hosts : [];
+        const liveModels = (function () {
+          const by = {};
+          liveHosts.forEach(function (h) {
+            (h.models || []).forEach(function (m) {
+              if (!m.tag) return;
+              if (!by[m.tag] || (m.size || 0) > (by[m.tag].size || 0)) by[m.tag] = m;
+            });
+          });
+          return Object.keys(by).sort().map(function (k) { return by[k]; });
+        })();
+        const selected = selectedRole() || roles[0];
+        const applyOpts = liveModels.map(function (m) {
+          const val = m.tag.indexOf("ollama/") === 0 ? m.tag : "ollama/" + m.tag;
+          const key = String(m.tag || "").replace(/^ollama\//, "").toLowerCase();
+          const catalog = [
+            { match: "smollm", greatAt: "fast FAQ", ram: "512 MB" },
+            { match: "qwen2.5-coder", greatAt: "coding", ram: "8 GB" },
+            { match: "qwen2.5", greatAt: "drafting", ram: "8 GB" },
+            { match: "qwen3", greatAt: "reasoning / careful drafting", ram: "16 GB" },
+            { match: "llama3", greatAt: "general chat", ram: "8 GB" },
+          ];
+          const hit = catalog.find(function (row) { return key === row.match || key.indexOf(row.match) === 0; });
+          const meta = hit ? hit.greatAt + " · ~" + hit.ram : "general use";
+          return '<option value="' + esc(val) + '">' + esc(String(m.tag || "").replace(/^ollama\//, "") + " — " + meta) + "</option>";
+        }).join("");
+        const applyCard = sidecarOn && liveModels.length
+          ? '<form id="apply-model" class="card"><div class="field"><label>Switch model (Captain approval)</label>' +
+            '<p class="muted">Applies only to <strong>' + esc(selected.displayName) + "</strong>. Prompts stay private.</p>" +
+            '<select name="modelRef">' + applyOpts + "</select></div>" +
+            '<button class="accent" type="submit">Apply to this agent</button></form>'
+          : '<p class="muted">Connect capacity to switch models per agent.</p>';
         const emptyName = (selectedRole() && selectedRole().displayName) || "this agent";
         const bubbles = (state.bubbles.length ? state.bubbles : [{ role: "system", text: "No messages with " + emptyName + " yet." }]).map((row) => {
           const running = row.roleId && state.running === row.roleId && row.role !== "you";
@@ -1132,7 +1169,7 @@
         shell(
           banner + switcher +
           '<div class="desk">' +
-            '<aside class="roster">' + rosterHtml +
+            '<aside class="roster">' + rosterHtml + applyCard +
               '<form id="add-role" class="card"><div class="field"><label>New agent</label><input name="name" placeholder="Display name" required></div>' +
               '<button class="accent" type="submit"' + (sidecarOn ? "" : " disabled") + ">Add</button></form>" +
             "</aside>" +
@@ -1178,6 +1215,25 @@
             paint();
           }
         };
+        const applyForm = document.getElementById("apply-model");
+        if (applyForm) {
+          applyForm.onsubmit = async (event) => {
+            event.preventDefault();
+            const modelRef = event.target.modelRef.value;
+            if (!modelRef) return;
+            try {
+              await api("/api/sandboxes/" + encodeURIComponent(current.sandboxId) + "/agents/model", {
+                method: "POST",
+                body: JSON.stringify({ roleId: state.selected, modelRef: modelRef }),
+              });
+              state.note = "Model applied to " + ((selectedRole() && selectedRole().displayName) || "agent");
+              await renderWorkspace(list);
+            } catch (err) {
+              state.note = err.message;
+              paint();
+            }
+          };
+        }
         document.getElementById("chat").onsubmit = (event) => {
           event.preventDefault();
           sendTurn();
@@ -1444,14 +1500,41 @@
         }
         function modelBand(size) {
           const n = Number(size) || 0;
-          if (n > 400 * 1024 * 1024) return "large";
-          if (n >= 200 * 1024 * 1024) return "standard";
-          return "compact";
+          if (n >= 400 * 1024 * 1024) return "large";
+          if (n > 0 && n < 200 * 1024 * 1024) return "compact";
+          return "standard";
         }
         function bandHint(band) {
           if (band === "large") return " — higher capacity";
           if (band === "compact") return " — lower capacity";
           return "";
+        }
+        const MODEL_CATALOG = [
+          { match: "smollm", greatAt: ["fast FAQ", "smoke tests", "low-RAM agents"], ramGuideBytes: 512 * 1024 * 1024, caveats: "Weak for long drafting or deep reasoning." },
+          { match: "qwen2.5-coder", greatAt: ["coding", "refactors", "technical docs"], ramGuideBytes: 8 * 1024 * 1024 * 1024 },
+          { match: "qwen2.5", greatAt: ["general drafting", "summaries", "business writing"], ramGuideBytes: 8 * 1024 * 1024 * 1024 },
+          { match: "qwen3", greatAt: ["reasoning", "careful drafting", "multi-step tasks"], ramGuideBytes: 16 * 1024 * 1024 * 1024 },
+          { match: "llama3.1", greatAt: ["general chat", "instructions", "light reasoning"], ramGuideBytes: 8 * 1024 * 1024 * 1024 },
+          { match: "llama3", greatAt: ["general chat", "instructions"], ramGuideBytes: 8 * 1024 * 1024 * 1024 },
+        ];
+        function catalogForTag(tag) {
+          const key = displayTag(tag).toLowerCase();
+          return MODEL_CATALOG.find(function (row) {
+            return key === row.match || key.indexOf(row.match) === 0;
+          });
+        }
+        function formatRamGuide(bytes) {
+          const n = Number(bytes) || 0;
+          if (n <= 0) return "unknown";
+          const gb = n / (1024 * 1024 * 1024);
+          if (gb >= 1) return (gb % 1 === 0 ? gb.toFixed(0) : gb.toFixed(1)) + " GB";
+          return Math.max(1, Math.round(n / (1024 * 1024))) + " MB";
+        }
+        function modelGreatAtLine(m) {
+          const meta = catalogForTag(m.tag);
+          const great = (meta && meta.greatAt) ? meta.greatAt.join(", ") : "general use";
+          const ram = formatRamGuide((meta && meta.ramGuideBytes) || m.size || 0);
+          return great + " · ~" + ram + " RAM";
         }
         function unionModels(hostsList, pinHostId) {
           const src = (hostsList || []).filter(function (h) {
@@ -1474,7 +1557,7 @@
         function modelOptionLabel(m) {
           const band = modelBand(m.size);
           const cap = band.charAt(0).toUpperCase() + band.slice(1);
-          return displayTag(m.tag) + " — " + cap + bandHint(band);
+          return displayTag(m.tag) + " — " + cap + " · " + modelGreatAtLine(m);
         }
         function sandboxModelLine(box) {
           const shown = displayTag(box.modelRef);
@@ -1482,9 +1565,7 @@
             return displayTag(m.tag) === shown;
           });
           if (!match) return shown;
-          const band = modelBand(match.size);
-          const cap = band.charAt(0).toUpperCase() + band.slice(1);
-          return shown + " — " + cap + bandHint(band);
+          return shown + " — " + modelGreatAtLine(match);
         }
         function modelSelectHtml(selectedRef, pinHostId) {
           const models = unionModels(hosts, pinHostId);

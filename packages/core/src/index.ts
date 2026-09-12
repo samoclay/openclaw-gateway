@@ -44,3 +44,13 @@ export {
   type SandboxTenantRow,
 } from "./authorize-insights";
 export { assertSafeTenantId, bindTenantPredicate } from "./sql-tenant";
+export {
+  MODEL_CATALOG,
+  catalogForTag,
+  enrichModels,
+  formatRamGuide,
+  modelBand,
+  type EnrichedModel,
+  type LiveModel,
+  type ModelCatalogEntry,
+} from "./model-catalog";
