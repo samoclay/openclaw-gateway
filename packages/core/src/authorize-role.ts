@@ -7,6 +7,7 @@ export type CrewRole = {
   displayName: string;
   agentId: string;
   modelRef: string;
+  systemRole?: string;
 };
 
 export type CrewSandbox = {
