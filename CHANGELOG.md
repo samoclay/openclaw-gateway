@@ -4,6 +4,8 @@ All notable changes to the OpenClaw portal and contract are documented in this f
 
 ## [Unreleased]
 
+## [0.1.1-rc.10] - 2026-09-12
+- Merge pull request #41 from samoclay/fix/staging-portal-crew-ux
 ## [0.1.1-rc.9] - 2026-09-12
 - Merge pull request #40 from samoclay/feature/optimiser
 ## [0.1.1-rc.8] - 2026-09-11
