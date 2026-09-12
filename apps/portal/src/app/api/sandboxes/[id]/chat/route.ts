@@ -39,6 +39,8 @@ export async function POST(
       agentId: turn.agentId,
       sessionKey: turn.sessionKey,
       message: turn.request.message,
+      model: turn.request.model,
+      maxTokens: 512,
     });
     void emitUsageEvent(getStore(), {
       sandboxId,

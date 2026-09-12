@@ -78,10 +78,10 @@
       z-index: 20;
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
+      align-items: center;
       gap: 1rem;
       margin: 0 -1.25rem 1.5rem;
-      padding: 0.9rem 1.25rem 1rem;
+      padding: 0.7rem 1.25rem 0.8rem;
       background: rgba(0, 0, 0, 0.9);
       border-bottom: 1px solid rgba(246, 196, 83, 0.08);
       backdrop-filter: blur(12px);
@@ -295,6 +295,7 @@
       align-items: center;
       text-align: left;
       width: 100%;
+      scroll-margin-top: 8rem;
       background: var(--raised);
       color: var(--text);
       border: 1px solid var(--line);
@@ -825,14 +826,18 @@
             ? '<article class="card"><p>Intent mix this week</p>' + intentMix(SAMPLE.intents) + "</article>"
             : "") +
         "</section>";
-      const cards = (insights || []).map((row) =>
+      const envNames = (options && options.envNames) || {};
+      const scopedId = (options && options.sandboxId) || "";
+      const scoped = (insights || []).filter((row) => !scopedId || row.tenantId === scopedId);
+      const cards = scoped.map((row) =>
         '<a class="card insight" href="#/insight/' + encodeURIComponent(row.insightId) + '">' +
-          '<p class="meta">' + row.category + " · " + row.severity + " · " + row.confidence + " · " + row.status + "</p>" +
+          '<p class="meta">' + row.category + " · " + row.severity + " · " + row.confidence + " · " + row.status +
+          (envNames[row.tenantId] ? " · " + envNames[row.tenantId] : "") + "</p>" +
           "<h3>" + row.title + "</h3>" +
           '<p class="muted">' + row.summary + "</p>" +
         "</a>"
       ).join("");
-      const empty = (!insights || !insights.length)
+      const empty = (!scoped.length)
         ? '<p class="muted">No insights yet for this workspace.</p>'
         : "";
       shell(banner + warn + kpis + charts + '<div class="insights">' + cards + empty + "</div>", {
@@ -957,21 +962,26 @@
       }
 
       function threadStorageKey(roleId) {
+        if (roleId === "crew" || !roleId) return "halcyon_thread_" + current.sandboxId + "_crew";
         return "halcyon_thread_" + current.sandboxId + "_" + roleIdOf(roleId);
       }
 
       function roomKeyName(roleId) {
+        if (roleId === "crew" || !roleId) return cognitoSub() + ":" + current.sandboxId + ":crew";
         return cognitoSub() + ":" + current.sandboxId + ":" + roleIdOf(roleId);
       }
 
-      function readThread(roleId) {
-        try { return sessionStorage.getItem(threadStorageKey(roleId)) || ""; }
-        catch { return ""; }
+      function readThread() {
+        try {
+          return sessionStorage.getItem(threadStorageKey("crew"))
+            || sessionStorage.getItem(threadStorageKey("default"))
+            || "";
+        } catch { return ""; }
       }
 
-      function writeThread(roleId, threadId) {
+      function writeThread(_roleId, threadId) {
         try {
-          const key = threadStorageKey(roleId);
+          const key = threadStorageKey("crew");
           if (threadId) sessionStorage.setItem(key, threadId);
           else sessionStorage.removeItem(key);
         } catch { /* ignore */ }
@@ -1046,8 +1056,8 @@
         }
       }
 
-      async function loadRoom(roleId) {
-        state.threadId = readThread(roleId);
+      async function loadRoom() {
+        state.threadId = readThread();
         state.hop = null;
         state.bubbles = [];
         if (!canPersistHistory()) {
@@ -1057,7 +1067,8 @@
         try {
           const db = await roomStore();
           await dropPlaintextRooms(db);
-          const row = await idbReq(db.transaction("rooms").objectStore("rooms").get(roomKeyName(roleId)));
+          let row = await idbReq(db.transaction("rooms").objectStore("rooms").get(roomKeyName("crew")));
+          if (!row) row = await idbReq(db.transaction("rooms").objectStore("rooms").get(roomKeyName("default")));
           const bubbles = await decryptBubbles(row);
           if (bubbles) state.bubbles = bubbles;
         } catch {
@@ -1065,21 +1076,19 @@
         }
       }
 
-      async function saveRoom(roleId) {
+      async function saveRoom() {
         if (!canPersistHistory()) return;
         try {
           const db = await roomStore();
           const sealed = await encryptBubbles(state.bubbles);
-          await idbReq(db.transaction("rooms", "readwrite").objectStore("rooms").put(sealed, roomKeyName(roleId)));
+          await idbReq(db.transaction("rooms", "readwrite").objectStore("rooms").put(sealed, roomKeyName("crew")));
         } catch { /* memory only */ }
       }
 
       async function switchRole(nextRoleId) {
-        if (!nextRoleId || nextRoleId === state.selected || state.pending) return;
-        await saveRoom(state.selected);
-        writeThread(state.selected, state.threadId);
+        if (!nextRoleId || nextRoleId === state.selected) return;
+        writeThread("crew", state.threadId);
         state.selected = nextRoleId;
-        await loadRoom(nextRoleId);
         await paint();
       }
 
@@ -1155,17 +1164,15 @@
             '<select name="modelRef">' + applyOpts + "</select></div>" +
             '<button class="accent" type="submit">Apply to this agent</button></form>'
           : '<p class="muted">Connect capacity to switch models per agent.</p>';
-        const emptyName = (selectedRole() && selectedRole().displayName) || "this agent";
-        const bubbles = (state.bubbles.length ? state.bubbles : [{ role: "system", text: "No messages with " + emptyName + " yet." }]).map((row) => {
+        const bubbles = (state.bubbles.length ? state.bubbles : [{ role: "system", text: "No messages in this crew yet." }]).map((row) => {
           const running = row.roleId && state.running === row.roleId && row.role !== "you";
           return '<article class="bubble' + (row.err ? " err-card" : "") + '"><header>' +
             (row.role === "you" ? "" : sunHtml(!!running)) +
             esc(row.label || row.role) + "</header><div>" + esc(row.text) + "</div></article>";
         }).join("");
-        const banner = '<p class="banner">' +
-          capacityPill(health) +
-          (state.note ? ' <span class="muted">' + esc(state.note) + "</span>" : "") +
-        "</p>";
+        const banner = state.note
+          ? '<p class="banner"><span class="muted">' + esc(state.note) + "</span></p>"
+          : "";
         shell(
           banner + switcher +
           '<div class="desk">' +
@@ -1195,8 +1202,10 @@
           state.threadId = "";
           state.hop = null;
           state.bubbles = [];
-          writeThread(state.selected, "");
-          await saveRoom(state.selected);
+          state.pending = false;
+          state.running = "";
+          writeThread("crew", "");
+          await saveRoom();
           paint();
         };
         document.getElementById("clear-history").onclick = () => { clearHistory(); };
@@ -1204,6 +1213,12 @@
           event.preventDefault();
           const name = event.target.name.value.trim();
           if (!name) return;
+          const taken = roles.some((role) => String(role.displayName || "").trim().toLowerCase() === name.toLowerCase());
+          if (taken) {
+            state.note = "That name is already on this crew. Pick a different display name.";
+            paint();
+            return;
+          }
           try {
             await api("/api/sandboxes/" + encodeURIComponent(current.sandboxId) + "/roles", {
               method: "POST",
@@ -1346,6 +1361,31 @@
           };
           if (mentionRoleId) body.mentionRoleId = mentionRoleId;
           ws.send(JSON.stringify(body));
+          const pendingWatch = setTimeout(() => {
+            if (!state.pending) return;
+            state.pending = false;
+            state.running = "";
+            try { ws.close(); } catch { /* ignore */ }
+            state.bubbles.push({
+              role: "error",
+              label: "Error",
+              text: "This turn timed out on the model host. You can switch agents and try again.",
+              err: true,
+            });
+            saveRoom();
+            paint();
+          }, 120000);
+          let settleTurn;
+          function finishTurn() {
+            clearTimeout(pendingWatch);
+            clearTimeout(settleTurn);
+            if (!state.pending) return;
+            state.running = "";
+            state.pending = false;
+            try { ws.close(); } catch { /* ignore */ }
+            saveRoom();
+            paint();
+          }
           ws.onmessage = async (event) => {
             let msg;
             try { msg = JSON.parse(event.data); } catch { return; }
@@ -1355,15 +1395,18 @@
               writeThread(state.selected, msg.threadId);
             }
             if (msg.type === "error") {
+              clearTimeout(settleTurn);
+              clearTimeout(pendingWatch);
               state.pending = false;
               state.running = "";
               state.bubbles.push({ role: "error", label: "Error", text: (msg.title || msg.error || "") + " — " + (msg.detail || ""), err: true });
               ws.close();
-              saveRoom(state.selected);
+              saveRoom();
               paint();
               return;
             }
             if (msg.type === "sealed") {
+              clearTimeout(settleTurn);
               try {
                 const opened = await hopOpen(hop.pair.privateKey, hop.peer, current.sandboxId, state.threadId, msg.sealed);
                 const from = opened.fromRoleId || msg.fromRoleId || "default";
@@ -1392,24 +1435,21 @@
               }
             }
             if (msg.type === "done") {
-              state.running = "";
-              state.pending = false;
-              ws.close();
-              saveRoom(state.selected);
-              paint();
+              clearTimeout(settleTurn);
+              settleTurn = setTimeout(finishTurn, 900);
             }
           };
         } catch (err) {
           state.pending = false;
           state.running = "";
           state.bubbles.push({ role: "error", label: "Error", text: formatChainError(err).replace(/<[^>]+>/g, " "), err: true });
-          saveRoom(state.selected);
+          saveRoom();
           paint();
         }
       }
 
       try {
-        await loadRoom(state.selected);
+        await loadRoom();
       } catch { /* ignore */ }
       await paint();
     }
@@ -1885,11 +1925,24 @@
             renderDetail(data.insight, { sample: false });
             return;
           }
-          const [insights, metrics] = await Promise.all([
+          const [insights, metrics, health] = await Promise.all([
             api("/api/insights"),
             api("/api/metrics/summary"),
+            api("/api/health").catch(() => ({ sidecar: false })),
           ]);
-          renderHome(insights.insights, metrics.metrics, { sample: false });
+          const envNames = {};
+          (sandboxes.sandboxes || []).forEach((row) => { envNames[row.sandboxId] = row.name; });
+          let sandboxId = "";
+          try { sandboxId = sessionStorage.getItem("halcyon_sandbox") || ""; } catch { /* ignore */ }
+          if (!sandboxId && sandboxes.sandboxes && sandboxes.sandboxes[0]) {
+            sandboxId = sandboxes.sandboxes[0].sandboxId;
+          }
+          renderHome(insights.insights, metrics.metrics, {
+            sample: false,
+            health: health,
+            envNames: envNames,
+            sandboxId: sandboxId,
+          });
         } catch (err) {
           if (/sign in|unauthorized|401/i.test(err.message)) throw err;
           showSample(view, err.message);
